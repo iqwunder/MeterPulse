@@ -7,6 +7,17 @@ MeterPulse erfasst Strom-, Gas- und Wasserverbrauch. Messwerte werden mit Verbra
 - Node.js 20.19 oder neuer
 - Docker Desktop mit Docker Compose (für die mitgelieferte MariaDB)
 
+## Jenkins konfigurieren
+
+Lege in Jenkins unter **Manage Jenkins → Credentials** ein Credential vom Typ **Secret text** an:
+
+- ID: `meterpulse-database-url`
+- Secret: vollständige URL, zum Beispiel `mysql://USER:PASSWORD@DB-HOST:3306/meterpulse`
+
+Sonderzeichen in Benutzername oder Passwort müssen URL-kodiert sein. Die Pipeline schreibt den Wert während des Builds als `DATABASE_URL` in eine zugriffsgeschützte `.env`-Datei und nimmt diese nur in `api.tar.gz` auf. Die Datei wird nicht in das Frontend-Archiv gepackt und nach dem Build aus dem Workspace entfernt. Im Deploy-Schritt erhält sie auf dem Server die Berechtigung `600`.
+
+Ein Build deployed nur, wenn der Parameter `DEPLOY` aktiviert ist. Für das Deployment müssen außerdem die vorhandenen Jenkins-Einstellungen `DEPLOY_SSH_KEY` und `WEBSERVER_IP` gesetzt sein.
+
 ## Entwicklungsstart unter Windows
 
 Öffne PowerShell im Projektordner und führe diese Schritte aus:

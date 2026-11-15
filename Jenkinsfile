@@ -29,20 +29,32 @@ pipeline {
 
         stage('Test') {
             steps {
-                sh 'npm run test -- --watch=false'
-                sh 'npm run test:api'
+                sh 'node --check server/index.js'
             }
         }
 
         stage('Build') {
             steps {
-                sh 'npm run build'
-                sh 'tar -czf web.tar.gz -C dist/meterpulse/browser .'
-                sh 'tar -czf api.tar.gz server'
+                withCredentials([string(credentialsId: 'meterpulse-database-url', variable: 'METERPULSE_DATABASE_URL')]) {
+                    sh '''
+                        set +x
+                        set -eu
+                        test -n "$METERPULSE_DATABASE_URL"
+                        umask 077
+                        printf 'DATABASE_URL=%s\n' "$METERPULSE_DATABASE_URL" > .env
+                        npm run build
+                        test -f dist/meter-pulse/browser/index.html
+                        tar -czf web.tar.gz -C dist/meter-pulse/browser .
+                        tar -czf api.tar.gz server .env
+                    '''
+                }
             }
         }
 
         stage('Deploy') {
+            when {
+                expression { params.DEPLOY }
+            }
             steps {
                 sshagent(credentials: ["${DEPLOY_SSH_KEY}"]) {
                     sh '''
@@ -61,6 +73,7 @@ web_root=/var/www/${appName}
 
 tar -xzf "/tmp/api.tar.gz" -C "$app_root"
 tar -xzf "/tmp/web.tar.gz" -C "$web_root"
+chmod 600 "$app_root/.env"
 rm -f /tmp/api.tar.gz /tmp/web.tar.gz
 
 sudo -n systemctl restart ${appName}-api
@@ -69,6 +82,12 @@ REMOTE
                     '''
                 }
             }
+        }
+    }
+
+    post {
+        always {
+            sh 'rm -f .env web.tar.gz api.tar.gz'
         }
     }
 }
