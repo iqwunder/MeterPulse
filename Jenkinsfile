@@ -1,0 +1,74 @@
+pipeline {
+    agent any
+
+    tools {
+        // Der Name muss exakt so heißen wie in der Global Tool Configuration eingetragen
+        nodejs 'NODEJS_24'
+    }
+    options {
+        disableConcurrentBuilds()
+        timestamps()
+    }
+
+    parameters {
+        string(name: 'APP_NAME', defaultValue: 'meterpulse', description: 'Name der Anwendung')
+        booleanParam(name: 'DEPLOY', defaultValue: false, description: 'Soll die App deployed werden')
+    }  
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }    
+        stage('Install dependencies') {
+            steps {
+                sh 'npm ci'
+            }
+        }
+
+        stage('Test') {
+            steps {
+                sh 'npm run test -- --watch=false'
+                sh 'npm run test:api'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'npm run build'
+                sh 'tar -czf web.tar.gz -C dist/meterpulse/browser .'
+                sh 'tar -czf api.tar.gz server'
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                sshagent(credentials: ["${DEPLOY_SSH_KEY}"]) {
+                    sh '''
+                        set -eu
+                        test -n "${WEBSERVER_IP}"
+                        test -n jenkins-deploy
+                        ssh_options="-o BatchMode=yes -o StrictHostKeyChecking=yes"
+                        scp $ssh_options web.tar.gz api.tar.gz "jenkins-deploy@${WEBSERVER_IP}:/tmp/"
+
+                        ssh $ssh_options "jenkins-deploy@${WEBSERVER_IP}" "bash -s -- '$BUILD_NUMBER' '$APP_NAME'" <<'REMOTE'
+set -eu
+build_number="$1"
+appName="$2"
+app_root=/opt/${appName}
+web_root=/var/www/${appName}
+
+tar -xzf "/tmp/api.tar.gz" -C "$app_root"
+tar -xzf "/tmp/web.tar.gz" -C "$web_root"
+rm -f /tmp/api.tar.gz /tmp/web.tar.gz
+
+sudo -n systemctl restart ${appName}-api
+curl --fail --silent --show-error --retry 10 --retry-connrefused --retry-delay 1 http://127.0.0.1:3000/api/health
+REMOTE
+                    '''
+                }
+            }
+        }
+    }
+}

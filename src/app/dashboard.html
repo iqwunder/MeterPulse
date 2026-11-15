@@ -1,0 +1,320 @@
+<div class="app-shell">
+    <aside class="sidebar">
+        <a class="brand" href="#overview" aria-label="MeterPulse Startseite">
+            <span class="brand-mark"><i></i><i></i><i></i></span>
+            <span>meter<span class="brand-light">pulse</span></span>
+        </a>
+
+        <div class="side-label">HAUSVERWALTUNG</div>
+        <nav class="main-nav" aria-label="Hauptnavigation">
+            <a class="nav-link" [class.active]="!helpOpen()" href="#overview" (click)="showDashboard()"><span
+                    class="nav-icon dashboard-icon"></span>Übersicht</a>
+            <a class="nav-link" href="#readings" (click)="showDashboard()"><span
+                    class="nav-icon history-icon"></span>Messwerte</a>
+            <a class="nav-link" [class.active]="helpOpen()" href="#help" (click)="showHelp()"><span
+                    class="nav-icon help-icon">?</span>Hilfe</a>
+        </nav>
+
+        <div class="sidebar-bottom">
+            <div class="home-card">
+                <span class="home-card-icon">H</span>
+                <span><strong>Mein Zuhause</strong><small>Alle Zähler im Blick</small></span>
+                <span class="home-card-dot"></span>
+            </div>
+            <div class="sidebar-foot"><span class="status-pip"></span>PRIVAT &amp; LOKAL</div>
+        </div>
+    </aside>
+
+    <main class="main-content" id="overview">
+        <header class="topbar">
+            <div class="breadcrumb"><span>MEIN ZUHAUSE</span><b>/</b><strong>{{ helpOpen() ? 'HILFE & CSV-FORMAT' :
+                    'ENERGIEÜBERSICHT' }}</strong></div>
+            <div class="topbar-right"><span class="today-label">{{ formatDate(newDate) }}</span><span
+                    class="avatar">MP</span></div>
+        </header>
+
+        @if (!helpOpen()) {
+        <div class="page-content">
+            <section class="page-heading">
+                <div>
+                    <div class="eyebrow"><span class="eyebrow-line"></span>DEIN ZUHAUSE, DEINE ENERGIE</div>
+                    <h1>Verbrauch im <em>Blick.</em></h1>
+                    <p>Alle Zählerstände und Verbräuche an einem Ort.</p>
+                </div>
+                <div class="heading-actions">
+                    <label class="button button-secondary import-button">
+                        <span class="upload-icon" aria-hidden="true"></span>CSV importieren
+                        <input type="file" accept=".csv,text/csv" (change)="importCsv($event)" />
+                    </label>
+                    <button class="button button-primary" type="button" (click)="openDialog()"><span
+                            class="plus-icon">+</span>Messwert erfassen</button>
+                </div>
+            </section>
+
+            @if (apiError()) {
+            <div class="alert alert-error" role="alert">
+                <span class="alert-mark">!</span>
+                <span><strong>Aktion fehlgeschlagen</strong><small>{{ apiError() }}</small></span>
+                <button type="button" class="text-button" (click)="loadReadings()">Erneut versuchen</button>
+            </div>
+            }
+            @if (notice()) {
+            <div class="alert alert-success" role="status"><span class="success-mark">✓</span>{{ notice() }}<button
+                    type="button" class="alert-dismiss" aria-label="Meldung schließen"
+                    (click)="notice.set('')">×</button></div>
+            }
+
+            <section class="summary-grid" aria-label="Verbrauchsübersicht">
+                @for (summary of summaries(); track summary.utility) {
+                <article [class]="'summary-card ' + summary.utility">
+                    <div class="summary-top">
+                        <span class="utility-symbol">{{ summary.utility === 'electricity' ? 'ST' : summary.utility ===
+                            'gas' ? 'GA' : 'WA' }}</span>
+                        <span class="summary-unit">{{ unitLabel(summary.utility) }}</span>
+                        <span class="summary-arrow" aria-hidden="true">↗</span>
+                    </div>
+                    <div class="summary-name">{{ utilityLabel(summary.utility) }}</div>
+                    <div class="summary-value">{{ formatValue(summary.total) }}<span>{{ unitLabel(summary.utility)
+                            }}</span></div>
+                    <div class="summary-meta">{{ period() === 'year' ? selectedYear() : 'Gesamtverbrauch' }}<span>{{
+                            summary.count }} Ablesungen · Ø {{ formatDailyValue(summary.averagePerDay) }}/Tag</span>
+                    </div>
+                </article>
+                }
+            </section>
+
+            <section class="content-grid">
+                <article class="panel chart-panel">
+                    <div class="panel-heading chart-heading">
+                        <div>
+                            <div class="section-kicker">VERBRAUCHSVERLAUF</div>
+                            <h2>Deine Entwicklung</h2>
+                        </div>
+                        <div class="period-control" role="group" aria-label="Zeitraum auswählen">
+                            <button type="button" [class.selected]="period() === 'all'"
+                                (click)="period.set('all')">Gesamt</button>
+                            <button type="button" [class.selected]="period() === 'year'"
+                                (click)="period.set('year')">Jahr</button>
+                        </div>
+                    </div>
+                    <div class="chart-toolbar">
+                        <div class="utility-tabs" role="group" aria-label="Energieträger auswählen">
+                            @for (utility of utilities; track utility) {
+                            <button type="button"
+                                [class]="'utility-tab ' + utility + (selectedUtility() === utility ? ' selected' : '')"
+                                (click)="selectedUtility.set(utility)">
+                                <span class="tab-dot"></span>{{ utilityLabel(utility) }}
+                            </button>
+                            }
+                        </div>
+                        @if (period() === 'year') {
+                        <select aria-label="Jahr auswählen" [ngModel]="selectedYear()"
+                            (ngModelChange)="selectedYear.set(+$event)">
+                            @for (year of years(); track year) { <option [ngValue]="year">{{ year }}</option> }
+                        </select>
+                        }
+                    </div>
+                    <div class="chart-wrap">
+                        @if (chartData().labels?.length) {
+                        <canvas baseChart [type]="'line'" [data]="chartData()" [options]="chartOptions"
+                            aria-label="Monatlicher Verbrauchsverlauf"></canvas>
+                        } @else {
+                        <div class="chart-empty"><span class="empty-chart-mark">↗</span><strong>Noch keine
+                                Verbrauchsdaten</strong><span>Erfasse einen Messwert oder importiere deine
+                                Historie.</span><button type="button" class="text-button" (click)="openDialog()">Ersten
+                                Messwert eintragen <span>→</span></button></div>
+                        }
+                    </div>
+                    <div class="chart-foot"><span class="chart-legend-dot"></span>{{ utilityLabel(selectedUtility())
+                        }}<span class="chart-unit">{{ unitLabel(selectedUtility()) }}</span><span
+                            class="chart-foot-note">{{ period() === 'year' ? 'Monatswerte · ' + selectedYear() :
+                            'Monatliche Werte · gesamte Zeit' }}</span></div>
+                </article>
+
+                <article class="panel readings-panel" id="readings">
+                    <div class="panel-heading readings-heading">
+                        <div>
+                            <div class="section-kicker">ZULETZT ERFASST</div>
+                            <h2>Messwerte</h2>
+                        </div><span class="reading-count">{{ readings().length }}</span>
+                    </div>
+                    @if (readings().length) {
+                    <div class="reading-list">
+                        @for (reading of visibleReadings(); track reading.id) {
+                        <div class="reading-row">
+                            <span [class]="'reading-type ' + reading.utility">{{ reading.utility === 'electricity' ?
+                                'ST' : reading.utility === 'gas' ? 'GA' : 'WA' }}</span>
+                            <span class="reading-info"><strong>{{ utilityLabel(reading.utility) }}</strong><small>{{
+                                    formatDate(reading.recordedAt) }}</small></span>
+                            <span class="reading-amount">{{ formatValue(reading.value) }}<small>{{ reading.unit
+                                    }}</small></span>
+                        </div>
+                        }
+                    </div>
+                    @if (readings().length > 6) {
+                    <button type="button" class="all-readings" (click)="showAllReadings.set(!showAllReadings())">{{
+                        showAllReadings() ? 'Weniger anzeigen' : 'Alle Messwerte' }} <span>→</span></button>
+                    }
+                    } @else {
+                    <div class="empty-readings"><span class="empty-meter">01</span><strong>Hier ist noch Platz.</strong>
+                        <p>Deine erfassten Zählerstände erscheinen hier chronologisch.</p><button type="button"
+                            class="text-button" (click)="openDialog()">Messwert hinzufügen <span>→</span></button>
+                    </div>
+                    }
+                </article>
+            </section>
+
+            <section class="panel daily-stats-panel">
+                <div class="panel-heading daily-stats-heading">
+                    <div>
+                        <div class="section-kicker">KENNZAHLEN</div>
+                        <h2>Verbrauch pro Tag</h2>
+                    </div>
+                    <span class="daily-stats-note">Aus den Ableseintervallen berechnet</span>
+                </div>
+                <div class="daily-stats-table-wrap">
+                    <table class="daily-stats-table">
+                        <thead>
+                            <tr>
+                                <th>Energieträger</th>
+                                <th>Gesamt</th>@for (year of recordedYears(); track year) { <th>{{ year }}</th> }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (stats of dailyUsageStats(); track stats.utility) {
+                            <tr>
+                                <th scope="row">{{ utilityLabel(stats.utility) }}</th>
+                                <td>{{ formatDailyValue(stats.total.perDay) }} {{ unitLabel(stats.utility) }}/Tag</td>
+                                @for (yearStats of stats.years; track yearStats.year) {
+                                <td>{{ formatDailyValue(yearStats.perDay) }} {{ unitLabel(stats.utility) }}/Tag</td>
+                                }
+                            </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <p class="daily-stats-footnote">Verbrauch wird gleichmäßig auf die Tage zwischen zwei Ablesungen
+                    verteilt. Bei einem niedrigeren Zählerstand wird ein Zählerwechsel angenommen; das nicht messbare
+                    Wechselintervall bleibt unberücksichtigt.</p>
+            </section>
+
+            <footer class="page-footer"><span><span class="footer-dot"></span>Alle Daten werden in deiner eigenen
+                    Datenbank gespeichert.</span><span>METERPULSE <b>·</b> HAUSVERBRAUCH</span></footer>
+        </div>
+        } @else {
+        <div class="page-content help-page" id="help">
+            <section class="page-heading">
+                <div>
+                    <div class="eyebrow"><span class="eyebrow-line"></span>GUT ZU WISSEN</div>
+                    <h1>CSV im <em>richtigen Format.</em></h1>
+                    <p>So kannst du historische Verbrauchswerte auf einmal übernehmen.</p>
+                </div>
+                <button class="button button-secondary" type="button" (click)="showDashboard()">Zur Übersicht</button>
+            </section>
+
+            <section class="help-grid">
+                <article class="panel help-panel">
+                    <div class="section-kicker">DATEIAUFBAU</div>
+                    <h2>Eine Zeile pro Verbrauchswert</h2>
+                    <p>Die erste Zeile enthält die Spaltennamen. Eine Zählerbezeichnung ist nicht erforderlich.</p>
+                    <div class="csv-table-wrap">
+                        <table class="csv-table">
+                            <thead>
+                                <tr>
+                                    <th>Spalte</th>
+                                    <th>Pflicht</th>
+                                    <th>Inhalt</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>utility</code></td>
+                                    <td>Ja</td>
+                                    <td><code>electricity</code>, <code>gas</code> oder <code>water</code></td>
+                                </tr>
+                                <tr>
+                                    <td><code>value</code></td>
+                                    <td>Ja</td>
+                                    <td>Zählerstand ab 0; Dezimaltrennzeichen ist der Punkt</td>
+                                </tr>
+                                <tr>
+                                    <td><code>date</code></td>
+                                    <td>Ja</td>
+                                    <td>Ablesedatum im Format <code>YYYY-MM-DD</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </article>
+
+                <article class="panel help-panel">
+                    <div class="section-kicker">BEISPIEL</div>
+                    <h2>Semikolon-getrennte CSV</h2>
+                    <pre class="csv-sample"><code>utility;value;date
+electricity;285.4;2025-01-31
+gas;82.1;2025-01-31
+water;12.6;2025-01-31</code></pre>
+                    <p>Komma als Trennzeichen wird ebenfalls erkannt. Die Datei muss UTF-8-kodiert sein.</p>
+                </article>
+
+                <article class="panel help-panel help-rules-panel">
+                    <div class="section-kicker">IMPORTREGELN</div>
+                    <h2>Vor dem Import</h2>
+                    <ul class="help-rules">
+                        <li>Die Spalten heißen <code>utility</code>, <code>value</code> und <code>date</code>;
+                            Groß-/Kleinschreibung und Reihenfolge sind frei.</li>
+                        <li>Strom wird in kWh, Gas und Wasser in m³ gespeichert. Die Einheit wird automatisch ermittelt.
+                        </li>
+                        <li>Die Werte sind kumulative Zählerstände und dürfen ab 0 beginnen. Ein sinkender Stand
+                            signalisiert einen Zählerwechsel; das nicht messbare Wechselintervall wird übersprungen.
+                        </li>
+                        <li>Die Tagesmittel werden aus den Differenzen berechnet und gleichmäßig auf die Tage zwischen
+                            Ablesungen verteilt.</li>
+                        <li>Pro Datei sind höchstens 5 MB und 5.000 Datenzeilen erlaubt.</li>
+                        <li>Der Import ist vollständig oder gar nicht: Bei einem ungültigen Datensatz wird die ganze
+                            Datei abgelehnt.</li>
+                    </ul>
+                    <button type="button" class="button button-primary" (click)="showDashboard()">Zur Übersicht und CSV
+                        importieren</button>
+                </article>
+            </section>
+        </div>
+        }
+    </main>
+</div>
+
+@if (dialogOpen()) {
+<div class="dialog-backdrop" (click)="closeDialog()" (keydown.escape)="closeDialog()">
+    <section class="entry-dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title"
+        (click)="$event.stopPropagation()">
+        <div class="dialog-top">
+            <div>
+                <div class="section-kicker">NEUER EINTRAG</div>
+                <h2 id="dialog-title">Messwert erfassen</h2>
+            </div><button class="dialog-close" type="button" aria-label="Dialog schließen"
+                (click)="closeDialog()">×</button>
+        </div>
+        <form (submit)="submitReading($event)">
+            <label class="field-label">Energieträger
+                <select name="utility" [(ngModel)]="newUtility">
+                    <option value="electricity">Strom</option>
+                    <option value="gas">Gas</option>
+                    <option value="water">Wasser</option>
+                </select>
+            </label>
+            <div class="field-row">
+                <label class="field-label">Verbrauch
+                    <span class="input-with-unit"><input name="value" [(ngModel)]="newValue" required type="number"
+                            min="0" step="0.001" placeholder="0,00" /><span>{{ unit }}</span></span>
+                </label>
+                <label class="field-label">Ablesedatum
+                    <input name="date" [(ngModel)]="newDate" required type="date" />
+                </label>
+            </div>
+            <div class="dialog-actions"><button class="button button-secondary" type="button"
+                    (click)="closeDialog()">Abbrechen</button><button class="button button-primary" type="submit"
+                    [disabled]="saving">{{ saving ? 'Wird gespeichert …' : 'Messwert speichern' }}</button></div>
+        </form>
+    </section>
+</div>
+}
