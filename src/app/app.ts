@@ -51,17 +51,26 @@ export class App {
     : this.readings());
   protected readonly summaries = computed(() => utilities.map((utility) => {
     const entries = this.currentYearReadings().filter((reading) => reading.utility === utility);
+    const intervals = this.usageIntervals();
     const usage = summarizeUsageSinceFirstReading(
       this.readings(),
-      this.usageIntervals(),
+      intervals,
       utility,
       this.currentYear,
     );
+    const years = [...new Set(this.readings()
+      .filter((reading) => reading.utility === utility)
+      .map((reading) => Number(reading.recordedAt.slice(0, 4))))]
+      .filter((year) => year < this.currentYear)
+      .sort((left, right) => right - left)
+      .map((year) => ({ year, total: summarizeUsage(intervals, utility, year).consumption }));
+
     return {
       utility,
       total: usage.consumption,
       averagePerDay: usage.perDay,
       count: entries.length,
+      years,
     };
   }));
   protected readonly dailyUsageStats = computed(() => utilities.map((utility) => ({

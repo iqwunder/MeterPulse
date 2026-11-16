@@ -79,6 +79,19 @@
                     <div class="summary-meta">Seit Jahresbeginn {{ currentYear }}<span>{{
                             summary.count }} Ablesungen · Ø {{ formatDailyValue(summary.averagePerDay) }}/Tag</span>
                     </div>
+                    @if (summary.years.length) {
+                    <details class="summary-history">
+                        <summary>Vorjahre</summary>
+                        <div class="summary-history-list">
+                            @for (yearValue of summary.years; track yearValue.year) {
+                            <div class="summary-history-row">
+                                <span>{{ yearValue.year }}</span>
+                                <strong>{{ formatValue(yearValue.total) }} <small>{{ unitLabel(summary.utility) }}</small></strong>
+                            </div>
+                            }
+                        </div>
+                    </details>
+                    }
                 </article>
                 }
             </section>
