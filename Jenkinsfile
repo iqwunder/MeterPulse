@@ -77,7 +77,7 @@ chmod 600 "$app_root/.env"
 rm -f /tmp/api.tar.gz /tmp/web.tar.gz
 
 sudo -n systemctl restart ${appName}-api
-curl --fail --silent --show-error --retry 10 --retry-connrefused --retry-delay 1 http://127.0.0.1:3000/api/health
+curl --fail --silent --show-error --retry 10 --retry-connrefused --retry-delay 1 http://127.0.0.1:3010/api/health
 REMOTE
                     '''
                 }

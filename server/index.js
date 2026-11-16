@@ -8,7 +8,7 @@ const multer = require('multer');
 const mysql = require('mysql2/promise');
 
 const app = express();
-const port = Number(process.env.API_PORT || 3000);
+const port = Number(process.env.API_PORT || 3010);
 const host = process.env.API_HOST || '127.0.0.1';
 const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:4200').split(',').map((origin) => origin.trim());
 const pool = mysql.createPool(process.env.DATABASE_URL || {

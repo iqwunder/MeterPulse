@@ -81,4 +81,4 @@ Mit vorhandener `.env` und laufender Datenbank startet der Build samt Webserver 
 npm run serve:prod
 ```
 
-Die Anwendung ist dann unter <http://localhost:3000> erreichbar. Für den Zugriff von anderen Geräten muss `API_HOST=0.0.0.0` gesetzt und der Port in der Firewall freigegeben werden.
+Die Anwendung ist dann unter <http://localhost:3010> erreichbar. Für den Zugriff von anderen Geräten muss `API_HOST=0.0.0.0` gesetzt und der Port in der Firewall freigegeben werden.
