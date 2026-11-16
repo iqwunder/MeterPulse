@@ -74,9 +74,9 @@ web_root=/var/www/${appName}
 
 tar -xzf "/tmp/api.tar.gz" -C "$app_root"
 tar -xzf "/tmp/web.tar.gz" -C "$web_root"
-chmod 600 "$app_root/.env"
-chmod 755 -R "$app_root/"
-chmod 755 -R "$web_root/"
+sudo chmod 600 "$app_root/.env"
+sudo chmod 755 -R "$app_root/"
+sudo chmod 755 -R "$web_root/"
 
 rm -f /tmp/api.tar.gz /tmp/web.tar.gz
 
