@@ -45,7 +45,8 @@ pipeline {
                         npm run build
                         test -f dist/meter-pulse/browser/index.html
                         tar -czf web.tar.gz -C dist/meter-pulse/browser .
-                        tar -czf api.tar.gz server .env
+                        npm prune --omit=dev
+                        tar -czf api.tar.gz server package.json package-lock.json node_modules .env
                     '''
                 }
             }
