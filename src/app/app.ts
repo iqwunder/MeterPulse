@@ -3,7 +3,12 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ChartData, ChartOptions } from 'chart.js';
 import { BaseChartDirective } from 'ng2-charts';
-import { bucketUsageByDate, createUsageIntervals, summarizeUsage } from './consumption';
+import {
+  bucketUsageByDate,
+  createUsageIntervals,
+  summarizeUsage,
+  summarizeUsageSinceFirstReading,
+} from './consumption';
 import { MeterApiService, Reading, Utility } from './meter-api.service';
 
 type Period = 'all' | 'year';
@@ -28,6 +33,7 @@ export class App {
   protected readonly showAllReadings = signal(false);
   protected readonly period = signal<Period>('all');
   protected readonly selectedUtility = signal<Utility>('electricity');
+  protected readonly currentYear = new Date().getFullYear();
   protected readonly selectedYear = signal(new Date().getFullYear());
   protected readonly years = computed(() => {
     const readingYears = this.readings().map((reading) => Number(reading.recordedAt.slice(0, 4)));
@@ -37,15 +43,19 @@ export class App {
     this.readings().map((reading) => Number(reading.recordedAt.slice(0, 4))),
   )].sort((a, b) => b - a));
   protected readonly usageIntervals = computed(() => createUsageIntervals(this.readings()));
+  protected readonly currentYearReadings = computed(() => this.readings().filter(
+    (reading) => reading.recordedAt.startsWith(String(this.currentYear)),
+  ));
   protected readonly periodReadings = computed(() => this.period() === 'year'
     ? this.readings().filter((reading) => reading.recordedAt.startsWith(String(this.selectedYear())))
     : this.readings());
   protected readonly summaries = computed(() => utilities.map((utility) => {
-    const entries = this.periodReadings().filter((reading) => reading.utility === utility);
-    const usage = summarizeUsage(
+    const entries = this.currentYearReadings().filter((reading) => reading.utility === utility);
+    const usage = summarizeUsageSinceFirstReading(
+      this.readings(),
       this.usageIntervals(),
       utility,
-      this.period() === 'year' ? this.selectedYear() : undefined,
+      this.currentYear,
     );
     return {
       utility,

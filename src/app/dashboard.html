@@ -76,7 +76,7 @@
                     <div class="summary-name">{{ utilityLabel(summary.utility) }}</div>
                     <div class="summary-value">{{ formatValue(summary.total) }}<span>{{ unitLabel(summary.utility)
                             }}</span></div>
-                    <div class="summary-meta">{{ period() === 'year' ? selectedYear() : 'Gesamtverbrauch' }}<span>{{
+                    <div class="summary-meta">Seit Jahresbeginn {{ currentYear }}<span>{{
                             summary.count }} Ablesungen · Ø {{ formatDailyValue(summary.averagePerDay) }}/Tag</span>
                     </div>
                 </article>

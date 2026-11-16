@@ -106,3 +106,23 @@ export function summarizeUsage(
     const days = selected.reduce((total, interval) => total + interval.days, 0);
     return { consumption, days, perDay: days > 0 ? consumption / days : null };
 }
+
+export function summarizeUsageSinceFirstReading(
+    readings: Reading[],
+    intervals: UsageInterval[],
+    utility: Utility,
+    year: number,
+): UsageSummary {
+    const firstReadingDate = readings
+        .filter((reading) => reading.utility === utility && reading.recordedAt.startsWith(String(year)))
+        .map((reading) => reading.recordedAt.slice(0, 10))
+        .sort()[0];
+
+    if (!firstReadingDate) return { consumption: 0, days: 0, perDay: null };
+
+    const sinceFirstReading = intervals.filter((interval) =>
+        interval.utility === utility && interval.from >= firstReadingDate,
+    );
+    return bucketUsageByDate(sinceFirstReading, 'year').get(String(year))
+        ?? { consumption: 0, days: 0, perDay: null };
+}
