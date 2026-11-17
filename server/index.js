@@ -46,6 +46,51 @@ function validateReading(input) {
     return { value: { utility, value, unit: unitFor(utility), recordedAt } };
 }
 
+const pvHeaderAliases = {
+    datum: 'date',
+    date: 'date',
+    erzeugt: 'generated',
+    erzeugung: 'generated',
+    generated: 'generated',
+    verbraucht: 'consumed',
+    verbrauch: 'consumed',
+    consumed: 'consumed',
+    einspeisung: 'feedIn',
+    feedin: 'feedIn',
+    netzbezug: 'gridImport',
+    gridimport: 'gridImport',
+};
+
+function normalizePvHeader(header) {
+    const normalized = header.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z]/g, '');
+    return pvHeaderAliases[normalized] || normalized;
+}
+
+function parseEnergyValue(input) {
+    const normalized = String(input ?? '').trim().replace(/\s/g, '').replace(',', '.');
+    if (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(normalized)) return Number.NaN;
+    return Number(normalized);
+}
+
+function validatePvReading(input) {
+    const recordedAt = input?.date;
+    if (!validDate(recordedAt)) return { error: 'Das PV-Datum muss im Format YYYY-MM-DD vorliegen.' };
+
+    const value = {
+        recordedAt,
+        generated: parseEnergyValue(input.generated),
+        consumed: parseEnergyValue(input.consumed),
+        feedIn: parseEnergyValue(input.feedIn),
+        gridImport: parseEnergyValue(input.gridImport),
+    };
+    const invalidField = Object.entries(value).find(([field, amount]) =>
+        field !== 'recordedAt' && (!Number.isFinite(amount) || amount < 0 || amount > 999999999.999),
+    );
+    if (invalidField) return { error: `Der PV-Wert für ${invalidField[0]} muss eine nichtnegative Zahl sein.` };
+
+    return { value };
+}
+
 app.get('/api/health', asyncRoute(async (_req, res) => {
     await pool.query('SELECT 1');
     res.json({ status: 'ok' });
@@ -117,6 +162,90 @@ app.post('/api/readings/import', upload.single('file'), asyncRoute(async (req, r
                 'INSERT INTO readings (utility, value, unit, recorded_at) VALUES (?, ?, ?, ?)',
                 [reading.utility, reading.value, reading.unit, reading.recordedAt],
             );
+        }
+        await connection.commit();
+    } catch (error) {
+        await connection.rollback();
+        throw error;
+    } finally {
+        connection.release();
+    }
+
+    res.status(201).json({ imported: valid.length });
+}));
+
+app.get('/api/pv-readings', asyncRoute(async (_req, res) => {
+    const [rows] = await pool.query(`
+        SELECT DATE_FORMAT(recorded_at, '%Y-%m-%d') AS date,
+            generated_kwh AS generated,
+            consumed_kwh AS consumed,
+            feed_in_kwh AS feedIn,
+            grid_import_kwh AS gridImport
+        FROM pv_daily_readings
+        ORDER BY recorded_at DESC
+    `);
+    res.json(rows);
+}));
+
+app.post('/api/pv-readings/import', upload.single('file'), asyncRoute(async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'Bitte eine PV-CSV-Datei auswählen.' });
+
+    let records;
+    try {
+        records = parse(req.file.buffer, {
+            bom: true,
+            columns: (headers) => headers.map(normalizePvHeader),
+            delimiter: [',', ';'],
+            skip_empty_lines: true,
+            trim: true,
+        });
+    } catch {
+        return res.status(400).json({ error: 'Die PV-CSV-Datei konnte nicht gelesen werden.' });
+    }
+
+    if (records.length === 0) return res.status(400).json({ error: 'Die PV-CSV-Datei enthält keine Tageswerte.' });
+    if (records.length > 5000) return res.status(400).json({ error: 'Pro PV-Import sind höchstens 5.000 Tageswerte erlaubt.' });
+
+    const requiredHeaders = ['date', 'generated', 'consumed', 'feedIn', 'gridImport'];
+    const headers = Object.keys(records[0]);
+    const missing = requiredHeaders.filter((header) => !headers.includes(header));
+    if (missing.length) return res.status(400).json({ error: `Fehlende PV-CSV-Spalten: ${missing.join(', ')}.` });
+
+    const valid = [];
+    const errors = [];
+    const dates = new Set();
+    records.forEach((record, index) => {
+        const result = validatePvReading(record);
+        if (result.error) {
+            errors.push(`Zeile ${index + 2}: ${result.error}`);
+        } else if (dates.has(result.value.recordedAt)) {
+            errors.push(`Zeile ${index + 2}: Das Datum ${result.value.recordedAt} kommt mehrfach in der Datei vor.`);
+        } else {
+            dates.add(result.value.recordedAt);
+            valid.push(result.value);
+        }
+    });
+
+    if (errors.length) {
+        const shown = errors.slice(0, 8).join(' ');
+        const remainder = errors.length > 8 ? ` Weitere ${errors.length - 8} Fehler.` : '';
+        return res.status(400).json({ error: `${shown}${remainder} Es wurde nichts importiert.` });
+    }
+
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
+        for (const reading of valid) {
+            await connection.execute(`
+                INSERT INTO pv_daily_readings
+                    (recorded_at, generated_kwh, consumed_kwh, feed_in_kwh, grid_import_kwh)
+                VALUES (?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    generated_kwh = VALUES(generated_kwh),
+                    consumed_kwh = VALUES(consumed_kwh),
+                    feed_in_kwh = VALUES(feed_in_kwh),
+                    grid_import_kwh = VALUES(grid_import_kwh)
+            `, [reading.recordedAt, reading.generated, reading.consumed, reading.feedIn, reading.gridImport]);
         }
         await connection.commit();
     } catch (error) {

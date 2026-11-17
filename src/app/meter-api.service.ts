@@ -12,6 +12,14 @@ export interface Reading {
     recordedAt: string;
 }
 
+export interface PvReading {
+    date: string;
+    generated: number | string;
+    consumed: number | string;
+    feedIn: number | string;
+    gridImport: number | string;
+}
+
 export type NewReading = Omit<Reading, 'id'>;
 
 @Injectable({ providedIn: 'root' })
@@ -31,6 +39,17 @@ export class MeterApiService {
         const formData = new FormData();
         formData.append('file', file);
         return this.http.post<{ imported: number }>(`${this.baseUrl}/import`, formData)
+            .pipe(catchError((error) => this.handleError(error)));
+    }
+
+    getPvReadings(): Observable<PvReading[]> {
+        return this.http.get<PvReading[]>('/api/pv-readings').pipe(catchError((error) => this.handleError(error)));
+    }
+
+    importPvCsv(file: File): Observable<{ imported: number }> {
+        const formData = new FormData();
+        formData.append('file', file);
+        return this.http.post<{ imported: number }>('/api/pv-readings/import', formData)
             .pipe(catchError((error) => this.handleError(error)));
     }
 

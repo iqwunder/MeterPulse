@@ -73,6 +73,23 @@ water,12.6,2025-01-31
 
 `utility` ist `electricity`, `gas` oder `water`. Der Zählerstand darf ab null liegen; das Datum muss im Format `YYYY-MM-DD` vorliegen. Pro Datei sind bis zu 5 MB und 5.000 Messwerte erlaubt. Fehlerhafte Dateien werden vollständig abgelehnt. Die Tagesverbräuche werden aus den Differenzen berechnet; sinkt der Stand, wird ein Zählerwechsel angenommen und dieses nicht messbare Intervall ausgelassen.
 
+## PV-Daten
+
+Die Seite **PV-Anlage** importiert und visualisiert tägliche Erzeugungs-, Verbrauchs-, Einspeise- und Netzbezugswerte in kWh. Die UTF-8-CSV muss diese Spalten enthalten; Semikolon oder Komma werden als Trennzeichen erkannt. Dezimalwerte dürfen Punkt oder Komma verwenden:
+
+```csv
+Datum;Erzeugt;Verbraucht;Einspeisung;Netzbezug
+2026-01-01;5,2;9,1;2,3;6,8
+```
+
+Pro Datum wird ein Tagesdatensatz gespeichert. Ein erneuter Import desselben Datums aktualisiert die Werte. Die PV-Tabelle wird bei einer neuen Datenbank durch [db/schema.sql](db/schema.sql) angelegt. Für eine bestehende Datenbank führe einmalig [db/migrations/002-create-pv-daily-readings.sql](db/migrations/002-create-pv-daily-readings.sql) aus, zum Beispiel:
+
+```bash
+mariadb -h DB-HOST -u meterpulse -p meterpulse < db/migrations/002-create-pv-daily-readings.sql
+```
+
+Der Import ist vollständig oder gar nicht: Ungültige Zeilen oder doppelte Datumswerte in derselben Datei werden abgelehnt.
+
 ## Produktionsstart
 
 Mit vorhandener `.env` und laufender Datenbank startet der Build samt Webserver und API gemeinsam:

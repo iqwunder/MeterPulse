@@ -11,7 +11,7 @@ import {
   summarizeUsageSinceFirstReading,
   summarizeUsageSinceMeterReset,
 } from './consumption';
-import { MeterApiService, Reading, Utility } from './meter-api.service';
+import { MeterApiService, PvReading, Reading, Utility } from './meter-api.service';
 
 type Period = 'all' | 'year';
 const utilities: Utility[] = ['electricity', 'gas', 'water'];
@@ -27,12 +27,18 @@ export class App {
 
   protected readonly utilities = utilities;
   protected readonly readings = signal<Reading[]>([]);
+  protected readonly pvReadings = signal<PvReading[]>([]);
   protected readonly loading = signal(true);
+  protected readonly pvLoading = signal(true);
   protected readonly apiError = signal('');
+  protected readonly pvApiError = signal('');
   protected readonly notice = signal('');
+  protected readonly pvNotice = signal('');
   protected readonly dialogOpen = signal(false);
   protected readonly helpOpen = signal(false);
   protected readonly readingsOpen = signal(false);
+  protected readonly pvOpen = signal(false);
+  protected readonly pvImporting = signal(false);
   protected readonly readingUtility = signal<Utility>('electricity');
   protected readonly period = signal<Period>('all');
   protected readonly selectedUtility = signal<Utility>('electricity');
@@ -211,6 +217,68 @@ export class App {
       y: { beginAtZero: true, border: { display: false }, grid: { color: '#e8ece8' }, ticks: { color: '#78817c' } },
     },
   };
+  protected readonly pvChartData = computed<ChartData<'line'>>(() => {
+    const readings = [...this.pvReadings()].sort((left, right) => left.date.localeCompare(right.date));
+    const series: Array<{
+      key: keyof Pick<PvReading, 'generated' | 'consumed' | 'feedIn' | 'gridImport'>;
+      label: string;
+      color: string;
+    }> = [
+      { key: 'generated', label: 'Erzeugt', color: '#e7933d' },
+      { key: 'consumed', label: 'Verbraucht', color: '#187663' },
+      { key: 'feedIn', label: 'Einspeisung', color: '#4c79a5' },
+      { key: 'gridImport', label: 'Netzbezug', color: '#bd5d4c' },
+    ];
+
+    return {
+      labels: readings.map((reading) => this.formatDate(reading.date)),
+      datasets: series.map(({ key, label, color }) => ({
+        label,
+        data: readings.map((reading) => Number(reading[key])),
+        borderColor: color,
+        backgroundColor: color,
+        pointRadius: readings.length > 120 ? 0 : 2,
+        pointHoverRadius: 4,
+        borderWidth: 2,
+        tension: 0.2,
+        fill: false,
+      })),
+    };
+  });
+  protected readonly pvRecentReadings = computed(() =>
+    [...this.pvReadings()].sort((left, right) => right.date.localeCompare(left.date)).slice(0, 30),
+  );
+  protected readonly pvMetrics = computed(() => {
+    const readings = this.pvReadings();
+    const metrics = [
+      { key: 'generated', label: 'Erzeugt', field: 'generated' },
+      { key: 'consumed', label: 'Verbraucht', field: 'consumed' },
+      { key: 'feed-in', label: 'Einspeisung', field: 'feedIn' },
+      { key: 'grid-import', label: 'Netzbezug', field: 'gridImport' },
+    ] as const;
+
+    return metrics.map((metric) => ({
+      key: metric.key,
+      label: metric.label,
+      total: readings.reduce((sum, reading) => sum + Number(reading[metric.field]), 0),
+    }));
+  });
+  protected readonly pvChartOptions: ChartOptions<'line'> = {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: {
+        display: true,
+        position: 'bottom',
+        labels: { color: '#78817c', boxWidth: 9, boxHeight: 9, usePointStyle: true, font: { size: 10 } },
+      },
+    },
+    scales: {
+      x: { grid: { display: false }, border: { display: false }, ticks: { color: '#78817c', maxTicksLimit: 12 } },
+      y: { beginAtZero: true, border: { display: false }, grid: { color: '#e8ece8' }, ticks: { color: '#78817c' } },
+    },
+  };
 
   protected newUtility: Utility = 'electricity';
   protected newValue: number | string | null = '';
@@ -220,11 +288,13 @@ export class App {
   constructor() {
     this.syncPageFromHash();
     this.loadReadings();
+    this.loadPvReadings();
   }
 
   @HostListener('window:hashchange')
   protected syncPageFromHash(): void {
     this.readingsOpen.set(window.location.hash === '#readings');
+    this.pvOpen.set(window.location.hash === '#pv');
     this.helpOpen.set(window.location.hash === '#help');
   }
 
@@ -261,20 +331,30 @@ export class App {
 
   protected showHelp(): void {
     this.readingsOpen.set(false);
+    this.pvOpen.set(false);
     this.helpOpen.set(true);
     if (window.location.hash !== '#help') window.location.hash = '#help';
   }
 
   protected showDashboard(): void {
     this.readingsOpen.set(false);
+    this.pvOpen.set(false);
     this.helpOpen.set(false);
     if (window.location.hash !== '#overview') window.location.hash = '#overview';
   }
 
   protected showReadings(): void {
     this.helpOpen.set(false);
+    this.pvOpen.set(false);
     this.readingsOpen.set(true);
     if (window.location.hash !== '#readings') window.location.hash = '#readings';
+  }
+
+  protected showPv(): void {
+    this.helpOpen.set(false);
+    this.readingsOpen.set(false);
+    this.pvOpen.set(true);
+    if (window.location.hash !== '#pv') window.location.hash = '#pv';
   }
 
   protected closeDialog(): void {
@@ -326,6 +406,30 @@ export class App {
     });
   }
 
+  protected importPvCsv(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    this.pvImporting.set(true);
+    this.pvApiError.set('');
+    this.api.importPvCsv(file).subscribe({
+      next: ({ imported }) => {
+        this.pvNotice.set(`${imported} PV-Tageswerte wurden importiert.`);
+        this.loadPvReadings();
+      },
+      error: (error: Error) => {
+        this.pvApiError.set(error.message);
+        input.value = '';
+        this.pvImporting.set(false);
+      },
+      complete: () => {
+        input.value = '';
+        this.pvImporting.set(false);
+      },
+    });
+  }
+
   protected loadReadings(): void {
     this.loading.set(true);
     this.api.getReadings().subscribe({
@@ -337,6 +441,21 @@ export class App {
       error: (error: Error) => {
         this.apiError.set(error.message);
         this.loading.set(false);
+      },
+    });
+  }
+
+  protected loadPvReadings(): void {
+    this.pvLoading.set(true);
+    this.api.getPvReadings().subscribe({
+      next: (readings) => {
+        this.pvReadings.set(readings);
+        this.pvApiError.set('');
+        this.pvLoading.set(false);
+      },
+      error: (error: Error) => {
+        this.pvApiError.set(error.message);
+        this.pvLoading.set(false);
       },
     });
   }
