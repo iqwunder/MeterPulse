@@ -648,17 +648,60 @@ h1 em {
     font-weight: 600;
 }
 
-.summary-value {
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
-    margin-top: 3px;
-    font: 600 29px/1.15 'Space Grotesk', sans-serif;
+.summary-metrics {
+    display: grid;
+    grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+    gap: 12px;
+    margin-top: 8px;
 }
 
-.summary-value span {
+.summary-current {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: center;
+    padding-right: 10px;
+    border-right: 1px solid #e8ece8;
+}
+
+.summary-metric-label,
+.summary-projection span {
+    color: #89948c;
+    font-size: 9px;
+    line-height: 1.35;
+}
+
+.summary-current strong {
+    margin-top: 5px;
+    color: #263a30;
+    font: 600 24px/1.1 'Space Grotesk', sans-serif;
+    white-space: nowrap;
+}
+
+.summary-current small,
+.summary-projection small {
+    margin-left: 4px;
     color: #818b84;
-    font: 500 11px 'DM Sans', sans-serif;
+    font: 500 9px 'DM Sans', sans-serif;
+}
+
+.summary-projection {
+    display: grid;
+    min-width: 0;
+    align-content: center;
+    gap: 8px;
+}
+
+.summary-projection>div {
+    display: grid;
+    min-width: 0;
+    gap: 2px;
+}
+
+.summary-projection strong {
+    color: #40564a;
+    font: 600 14px/1.2 'Space Grotesk', sans-serif;
+    white-space: nowrap;
 }
 
 .summary-meta {
@@ -668,22 +711,6 @@ h1 em {
     margin-top: 8px;
     color: #9aa29c;
     font-size: 9px;
-}
-
-.summary-annual {
-    display: flex;
-    justify-content: space-between;
-    gap: 6px;
-    margin-top: 7px;
-    color: #78847b;
-    font-size: 9px;
-}
-
-.summary-annual strong {
-    color: #4a574e;
-    font-size: 11px;
-    font-weight: 600;
-    white-space: nowrap;
 }
 
 .summary-history {
@@ -729,6 +756,10 @@ h1 em {
     display: grid;
     grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr);
     gap: 14px;
+}
+
+.overview-content-grid {
+    grid-template-columns: minmax(0, 1fr);
 }
 
 .panel {
@@ -936,6 +967,81 @@ h2 {
     min-height: 400px;
     flex-direction: column;
     padding: 20px 18px 14px;
+}
+
+.readings-actions {
+    align-items: flex-end;
+}
+
+.readings-utility-control {
+    display: grid;
+    gap: 6px;
+    color: #78847b;
+    font-size: 10px;
+    font-weight: 600;
+}
+
+.readings-utility-control select {
+    min-width: 150px;
+    height: 40px;
+    padding: 0 30px 0 11px;
+    border: 1px solid #dfe6df;
+    border-radius: 5px;
+    color: #35473c;
+    background: #fff;
+    font: 500 12px 'DM Sans', sans-serif;
+}
+
+.readings-table-panel {
+    padding: 20px 21px 14px;
+}
+
+.readings-table-heading {
+    margin-bottom: 12px;
+}
+
+.readings-table-wrap {
+    overflow-x: auto;
+}
+
+.readings-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+.readings-table th,
+.readings-table td {
+    padding: 12px 14px;
+    border-bottom: 1px solid #edf0ed;
+    font-size: 12px;
+}
+
+.readings-table thead th {
+    color: #849087;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+}
+
+.readings-table tbody td {
+    color: #40564a;
+    font-variant-numeric: tabular-nums;
+}
+
+.readings-table tbody td:not(:first-child) {
+    white-space: nowrap;
+}
+
+.readings-table-empty {
+    display: grid;
+    min-height: 180px;
+    place-items: center;
+    padding: 24px;
+    color: #7d8a81;
+    font-size: 13px;
+    text-align: center;
 }
 
 .readings-heading {
@@ -1387,6 +1493,7 @@ h2 {
     }
 
     .summary-grid {
+        grid-template-columns: 1fr;
         gap: 8px;
         margin-bottom: 11px;
     }
@@ -1394,6 +1501,24 @@ h2 {
     .summary-card {
         min-height: 126px;
         padding: 11px 10px;
+    }
+
+    .readings-actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .readings-utility-control select {
+        width: 100%;
+    }
+
+    .readings-table-panel {
+        padding: 15px 13px 10px;
+    }
+
+    .readings-table th,
+    .readings-table td {
+        padding: 10px 8px;
     }
 
     .utility-symbol {
@@ -1410,14 +1535,16 @@ h2 {
         font-size: 10px;
     }
 
-    .summary-value {
-        gap: 4px;
-        margin-top: 5px;
-        font-size: 21px;
+    .summary-metrics {
+        grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
     }
 
-    .summary-value span {
-        font-size: 9px;
+    .summary-current strong {
+        font-size: 23px;
+    }
+
+    .summary-projection strong {
+        font-size: 13px;
     }
 
     .summary-meta {
@@ -1425,17 +1552,6 @@ h2 {
         gap: 2px;
         margin-top: 6px;
         font-size: 8px;
-    }
-
-    .summary-annual {
-        flex-direction: column;
-        gap: 2px;
-        margin-top: 6px;
-        font-size: 8px;
-    }
-
-    .summary-annual strong {
-        font-size: 10px;
     }
 
     .chart-panel,
@@ -1484,8 +1600,8 @@ h2 {
         padding-left: 7px;
     }
 
-    .summary-value {
-        font-size: 19px;
+    .summary-current strong {
+        font-size: 21px;
     }
 }
 

@@ -1,13 +1,15 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, HostListener, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ChartData, ChartOptions } from 'chart.js';
 import { BaseChartDirective } from 'ng2-charts';
 import {
+  averageUsageByReadingDate,
   bucketUsageByDate,
   createUsageIntervals,
   summarizeUsage,
   summarizeUsageSinceFirstReading,
+  summarizeUsageSinceMeterReset,
 } from './consumption';
 import { MeterApiService, Reading, Utility } from './meter-api.service';
 
@@ -30,7 +32,8 @@ export class App {
   protected readonly notice = signal('');
   protected readonly dialogOpen = signal(false);
   protected readonly helpOpen = signal(false);
-  protected readonly showAllReadings = signal(false);
+  protected readonly readingsOpen = signal(false);
+  protected readonly readingUtility = signal<Utility>('electricity');
   protected readonly period = signal<Period>('all');
   protected readonly selectedUtility = signal<Utility>('electricity');
   protected readonly currentYear = new Date().getFullYear();
@@ -46,9 +49,6 @@ export class App {
   protected readonly currentYearReadings = computed(() => this.readings().filter(
     (reading) => reading.recordedAt.startsWith(String(this.currentYear)),
   ));
-  protected readonly periodReadings = computed(() => this.period() === 'year'
-    ? this.readings().filter((reading) => reading.recordedAt.startsWith(String(this.selectedYear())))
-    : this.readings());
   protected readonly summaries = computed(() => utilities.map((utility) => {
     const entries = this.currentYearReadings().filter((reading) => reading.utility === utility);
     const intervals = this.usageIntervals();
@@ -58,7 +58,13 @@ export class App {
       utility,
       this.currentYear,
     );
-    const allTimeAveragePerDay = summarizeUsage(intervals, utility).perDay;
+    const utilityReadings = this.readings().filter((reading) => reading.utility === utility);
+    const averagePerDay = summarizeUsageSinceMeterReset(this.readings(), intervals, utility).perDay;
+    const hasMeterReset = utilityReadings.some((reading) => Number(reading.value) === 0);
+    const now = new Date();
+    const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+    const nextYear = Date.UTC(this.currentYear + 1, 0, 1);
+    const remainingDays = Math.max(0, (nextYear - today) / 86_400_000 - 1);
     const years = [...new Set(this.readings()
       .filter((reading) => reading.utility === utility)
       .map((reading) => Number(reading.recordedAt.slice(0, 4))))]
@@ -69,20 +75,30 @@ export class App {
     return {
       utility,
       total: usage.consumption,
-      averagePerDay: allTimeAveragePerDay,
+      averagePerDay,
+      averageBasis: hasMeterReset ? 'Ø seit Zählerwechsel' : 'Ø Gesamtzeitraum',
+      projectedYearEnd: averagePerDay === null ? null : usage.consumption + averagePerDay * remainingDays,
       count: entries.length,
       years,
     };
   }));
+  protected readonly selectedReadingRows = computed(() => {
+    const utility = this.readingUtility();
+    const averages = averageUsageByReadingDate(this.readings(), utility);
+
+    return this.readings()
+      .filter((reading) => reading.utility === utility)
+      .sort((left, right) => right.recordedAt.localeCompare(left.recordedAt) || right.id - left.id)
+      .map((reading) => ({
+        ...reading,
+        averagePerDay: averages.get(reading.recordedAt.slice(0, 10)) ?? null,
+      }));
+  });
   protected readonly dailyUsageStats = computed(() => utilities.map((utility) => ({
     utility,
     total: summarizeUsage(this.usageIntervals(), utility),
     years: this.recordedYears().map((year) => ({ year, ...summarizeUsage(this.usageIntervals(), utility, year) })),
   })));
-  protected readonly visibleReadings = computed(() => {
-    const sorted = [...this.readings()].sort((a, b) => b.recordedAt.localeCompare(a.recordedAt));
-    return this.showAllReadings() ? sorted : sorted.slice(0, 6);
-  });
   protected readonly chartData = computed<ChartData<'line'>>(() => {
     const monthlyUsage = bucketUsageByDate(
       this.usageIntervals().filter((interval) => interval.utility === this.selectedUtility()),
@@ -133,7 +149,14 @@ export class App {
   protected saving = false;
 
   constructor() {
+    this.syncPageFromHash();
     this.loadReadings();
+  }
+
+  @HostListener('window:hashchange')
+  protected syncPageFromHash(): void {
+    this.readingsOpen.set(window.location.hash === '#readings');
+    this.helpOpen.set(window.location.hash === '#help');
   }
 
   protected get unit(): string {
@@ -168,11 +191,21 @@ export class App {
   }
 
   protected showHelp(): void {
+    this.readingsOpen.set(false);
     this.helpOpen.set(true);
+    if (window.location.hash !== '#help') window.location.hash = '#help';
   }
 
   protected showDashboard(): void {
+    this.readingsOpen.set(false);
     this.helpOpen.set(false);
+    if (window.location.hash !== '#overview') window.location.hash = '#overview';
+  }
+
+  protected showReadings(): void {
+    this.helpOpen.set(false);
+    this.readingsOpen.set(true);
+    if (window.location.hash !== '#readings') window.location.hash = '#readings';
   }
 
   protected closeDialog(): void {

@@ -126,3 +126,68 @@ export function summarizeUsageSinceFirstReading(
     return bucketUsageByDate(sinceFirstReading, 'year').get(String(year))
         ?? { consumption: 0, days: 0, perDay: null };
 }
+
+export function summarizeUsageSinceMeterReset(
+    readings: Reading[],
+    intervals: UsageInterval[],
+    utility: Utility,
+): UsageSummary {
+    const sortedReadings = readings
+        .filter((reading) => reading.utility === utility)
+        .sort((left, right) => left.recordedAt.localeCompare(right.recordedAt) || left.id - right.id);
+    const baseline = [...sortedReadings].reverse().find((reading) => Number(reading.value) === 0)
+        ?? sortedReadings[0];
+
+    if (!baseline) return { consumption: 0, days: 0, perDay: null };
+
+    const startDate = baseline.recordedAt.slice(0, 10);
+    const selected = intervals.filter((interval) => interval.utility === utility && interval.from >= startDate);
+    const consumption = selected.reduce((total, interval) => total + interval.consumption, 0);
+    const days = selected.reduce((total, interval) => total + interval.days, 0);
+    return { consumption, days, perDay: days > 0 ? consumption / days : null };
+}
+
+export function averageUsageByReadingDate(readings: Reading[], utility: Utility): Map<string, number | null> {
+    const readingsByDate = new Map<string, Reading>();
+    const sortedReadings = readings
+        .filter((reading) => reading.utility === utility)
+        .sort((left, right) => left.recordedAt.localeCompare(right.recordedAt) || left.id - right.id);
+
+    for (const reading of sortedReadings) {
+        readingsByDate.set(reading.recordedAt.slice(0, 10), reading);
+    }
+
+    const averages = new Map<string, number | null>();
+    let previous: Reading | undefined;
+    let consumption = 0;
+    let days = 0;
+
+    for (const current of readingsByDate.values()) {
+        const date = current.recordedAt.slice(0, 10);
+        if (Number(current.value) === 0) {
+            consumption = 0;
+            days = 0;
+            averages.set(date, null);
+            previous = current;
+            continue;
+        }
+
+        if (previous) {
+            const previousDate = previous.recordedAt.slice(0, 10);
+            const intervalDays = (Date.parse(`${date}T00:00:00Z`) - Date.parse(`${previousDate}T00:00:00Z`))
+                / millisecondsPerDay;
+            const previousValue = Number(previous.value);
+            const currentValue = Number(current.value);
+
+            if (intervalDays > 0 && currentValue >= previousValue) {
+                consumption += currentValue - previousValue;
+                days += intervalDays;
+            }
+        }
+
+        averages.set(date, days > 0 ? consumption / days : null);
+        previous = current;
+    }
+
+    return averages;
+}
