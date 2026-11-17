@@ -192,10 +192,12 @@ app.post('/api/pv-readings/import', upload.single('file'), asyncRoute(async (req
 
     let records;
     try {
+        const firstLine = req.file.buffer.toString('utf8').replace(/^\uFEFF/, '').split(/\r?\n/).find((line) => line.trim()) || '';
+        const delimiter = firstLine.includes(';') ? ';' : ',';
         records = parse(req.file.buffer, {
             bom: true,
             columns: (headers) => headers.map(normalizePvHeader),
-            delimiter: [',', ';'],
+            delimiter,
             skip_empty_lines: true,
             trim: true,
         });

@@ -75,7 +75,7 @@ water,12.6,2025-01-31
 
 ## PV-Daten
 
-Die Seite **PV-Anlage** importiert und visualisiert tägliche Erzeugungs-, Verbrauchs-, Einspeise- und Netzbezugswerte in kWh. Die UTF-8-CSV muss diese Spalten enthalten; Semikolon oder Komma werden als Trennzeichen erkannt. Dezimalwerte dürfen Punkt oder Komma verwenden:
+Die Seite **PV-Anlage** importiert und visualisiert tägliche Erzeugungs-, Verbrauchs-, Einspeise- und Netzbezugswerte in kWh. Die UTF-8-CSV muss diese Spalten enthalten. Das Trennzeichen wird aus der Kopfzeile erkannt. Bei Semikolon als Trennzeichen dürfen Dezimalwerte Punkt oder Komma verwenden. Bei Komma als Trennzeichen müssen Dezimalwerte einen Punkt verwenden:
 
 ```csv
 Datum;Erzeugt;Verbraucht;Einspeisung;Netzbezug
