@@ -224,11 +224,11 @@ export class App {
       label: string;
       color: string;
     }> = [
-      { key: 'generated', label: 'Erzeugt', color: '#e7933d' },
-      { key: 'consumed', label: 'Verbraucht', color: '#187663' },
-      { key: 'feedIn', label: 'Einspeisung', color: '#4c79a5' },
-      { key: 'gridImport', label: 'Netzbezug', color: '#bd5d4c' },
-    ];
+        { key: 'generated', label: 'Erzeugt', color: '#e7933d' },
+        { key: 'consumed', label: 'Verbraucht', color: '#187663' },
+        { key: 'feedIn', label: 'Einspeisung', color: '#4c79a5' },
+        { key: 'gridImport', label: 'Netzbezug', color: '#bd5d4c' },
+      ];
 
     return {
       labels: readings.map((reading) => this.formatDate(reading.date)),
