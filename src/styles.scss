@@ -653,7 +653,7 @@ h1 em {
     align-items: baseline;
     gap: 6px;
     margin-top: 3px;
-    font: 600 26px/1.15 'Space Grotesk', sans-serif;
+    font: 600 29px/1.15 'Space Grotesk', sans-serif;
 }
 
 .summary-value span {
@@ -668,6 +668,22 @@ h1 em {
     margin-top: 8px;
     color: #9aa29c;
     font-size: 9px;
+}
+
+.summary-annual {
+    display: flex;
+    justify-content: space-between;
+    gap: 6px;
+    margin-top: 7px;
+    color: #78847b;
+    font-size: 9px;
+}
+
+.summary-annual strong {
+    color: #4a574e;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
 }
 
 .summary-history {
@@ -1397,7 +1413,7 @@ h2 {
     .summary-value {
         gap: 4px;
         margin-top: 5px;
-        font-size: 19px;
+        font-size: 21px;
     }
 
     .summary-value span {
@@ -1409,6 +1425,17 @@ h2 {
         gap: 2px;
         margin-top: 6px;
         font-size: 8px;
+    }
+
+    .summary-annual {
+        flex-direction: column;
+        gap: 2px;
+        margin-top: 6px;
+        font-size: 8px;
+    }
+
+    .summary-annual strong {
+        font-size: 10px;
     }
 
     .chart-panel,
@@ -1458,7 +1485,7 @@ h2 {
     }
 
     .summary-value {
-        font-size: 17px;
+        font-size: 19px;
     }
 }
 

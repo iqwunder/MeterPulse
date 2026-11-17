@@ -58,6 +58,7 @@ export class App {
       utility,
       this.currentYear,
     );
+    const allTimeAveragePerDay = summarizeUsage(intervals, utility).perDay;
     const years = [...new Set(this.readings()
       .filter((reading) => reading.utility === utility)
       .map((reading) => Number(reading.recordedAt.slice(0, 4))))]
@@ -68,7 +69,7 @@ export class App {
     return {
       utility,
       total: usage.consumption,
-      averagePerDay: usage.perDay,
+      averagePerDay: allTimeAveragePerDay,
       count: entries.length,
       years,
     };

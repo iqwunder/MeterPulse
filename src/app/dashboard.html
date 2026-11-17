@@ -73,12 +73,13 @@
                         <span class="summary-unit">{{ unitLabel(summary.utility) }}</span>
                         <span class="summary-arrow" aria-hidden="true">↗</span>
                     </div>
-                    <div class="summary-name">{{ utilityLabel(summary.utility) }}</div>
-                    <div class="summary-value">{{ formatValue(summary.total) }}<span>{{ unitLabel(summary.utility)
-                            }}</span></div>
-                    <div class="summary-meta">Seit Jahresbeginn {{ currentYear }}<span>{{
-                            summary.count }} Ablesungen · Ø {{ formatDailyValue(summary.averagePerDay) }}/Tag</span>
-                    </div>
+                    <div class="summary-name">{{ utilityLabel(summary.utility) }} {{ currentYear }}</div>
+                    <div class="summary-value">{{ formatDailyValue(summary.averagePerDay) }}<span>{{
+                            unitLabel(summary.utility) }}/Tag</span></div>
+                    <div class="summary-meta">Durchschnitt über die gesamte Messhistorie<span>{{
+                            summary.count }} Ablesungen {{ currentYear }}</span></div>
+                    <div class="summary-annual"><span>Jahresverbrauch ab erster Messung</span><strong>{{
+                            formatValue(summary.total) }} {{ unitLabel(summary.utility) }}</strong></div>
                     @if (summary.years.length) {
                     <details class="summary-history">
                         <summary>Vorjahre</summary>
@@ -86,7 +87,8 @@
                             @for (yearValue of summary.years; track yearValue.year) {
                             <div class="summary-history-row">
                                 <span>{{ yearValue.year }}</span>
-                                <strong>{{ formatValue(yearValue.total) }} <small>{{ unitLabel(summary.utility) }}</small></strong>
+                                <strong>{{ formatValue(yearValue.total) }} <small>{{ unitLabel(summary.utility)
+                                        }}</small></strong>
                             </div>
                             }
                         </div>
