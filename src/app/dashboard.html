@@ -341,11 +341,42 @@
             <section class="pv-metric-grid" aria-label="PV-Gesamtwerte">
                 @for (metric of pvMetrics(); track metric.key) {
                 <article [class]="'pv-metric ' + metric.key">
-                    <span>{{ metric.label }}</span>
-                    <strong>{{ formatValue(metric.total) }}<small>kWh</small></strong>
+                    <span>{{ metric.label }} · {{ currentYear }}</span>
+                    <strong>{{ formatValue(metric.currentYear) }}<small>kWh</small></strong>
+                    <div class="pv-metric-total">Gesamt {{ formatValue(metric.total) }} kWh</div>
                 </article>
                 }
             </section>
+
+            @if (pvYearlyTotals().length) {
+            <details class="panel pv-history-panel">
+                <summary>Jahresstatistik öffnen</summary>
+                <div class="pv-table-wrap">
+                    <table class="pv-table">
+                        <thead>
+                            <tr>
+                                <th>Jahr</th>
+                                <th>Erzeugt</th>
+                                <th>Verbraucht</th>
+                                <th>Einspeisung</th>
+                                <th>Netzbezug</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (year of pvYearlyTotals(); track year.year) {
+                            <tr>
+                                <th scope="row">{{ year.year }}</th>
+                                <td>{{ formatValue(year.generated) }} kWh</td>
+                                <td>{{ formatValue(year.consumed) }} kWh</td>
+                                <td>{{ formatValue(year.feedIn) }} kWh</td>
+                                <td>{{ formatValue(year.gridImport) }} kWh</td>
+                            </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </details>
+            }
 
             <section class="panel chart-panel pv-chart-panel">
                 <div class="panel-heading chart-heading">
@@ -353,17 +384,29 @@
                         <div class="section-kicker">TAGESWERTE</div>
                         <h2>PV-Energieflüsse</h2>
                     </div>
-                    <span class="reading-count">{{ pvReadings().length }}</span>
+                    <span class="reading-count">{{ pvChartReadings().length }}</span>
+                </div>
+                <div class="chart-toolbar pv-year-toolbar">
+                    <label for="pv-chart-year">Jahr</label>
+                    <select id="pv-chart-year" aria-label="Jahr im PV-Energiefluss auswählen"
+                        [ngModel]="pvSelectedYear()"
+                        (ngModelChange)="pvSelectedYear.set($event === 'all' ? 'all' : +$event)">
+                        <option value="all">Alle Jahre</option>
+                        @for (year of pvAvailableYears(); track year) {
+                        <option [ngValue]="year">{{ year }}</option>
+                        }
+                    </select>
                 </div>
                 <div class="chart-wrap pv-chart-wrap">
                     @if (pvLoading()) {
                     <div class="chart-empty"><strong>PV-Daten werden geladen …</strong></div>
-                    } @else if (pvReadings().length) {
+                    } @else if (pvChartReadings().length) {
                     <canvas baseChart [type]="'line'" [data]="pvChartData()" [options]="pvChartOptions"
                         aria-label="Tägliche PV-Erzeugung, Verbrauch, Einspeisung und Netzbezug in Kilowattstunden"></canvas>
                     } @else {
-                    <div class="chart-empty"><span class="empty-chart-mark">↗</span><strong>Noch keine PV-Daten</strong>
-                        <span>Importiere eine CSV-Datei mit den fünf PV-Spalten.</span>
+                    <div class="chart-empty"><span class="empty-chart-mark">↗</span><strong>Keine PV-Daten für dieses
+                            Jahr</strong>
+                        <span>Wähle ein anderes Jahr oder importiere eine CSV-Datei.</span>
                     </div>
                     }
                 </div>
@@ -373,6 +416,22 @@
                 <div class="panel-heading pv-table-heading">
                     <div>
                         <div class="section-kicker">LETZTE TAGESWERTE</div>
+
+                        @if (pvYearlyTotals().length) {
+                        <section class="panel chart-panel pv-year-chart-panel">
+                            <div class="panel-heading chart-heading">
+                                <div>
+                                    <div class="section-kicker">JAHRESVERGLEICH</div>
+                                    <h2>PV-Werte pro Jahr</h2>
+                                </div>
+                            </div>
+                            <div class="chart-wrap pv-year-chart-wrap">
+                                <canvas baseChart [type]="'line'" [data]="pvYearlyChartData()"
+                                    [options]="pvChartOptions"
+                                    aria-label="Jahressummen für Erzeugung, Verbrauch, Einspeisung und Netzbezug in Kilowattstunden"></canvas>
+                            </div>
+                        </section>
+                        }
                         <h2>Messdaten</h2>
                     </div>
                     <span>Datum;Erzeugt;Verbraucht;Einspeisung;Netzbezug · kWh</span>

@@ -1653,6 +1653,11 @@ h2 {
     font-size: 10px;
 }
 
+.pv-metric-total {
+    color: #89948c;
+    font-size: 9px;
+}
+
 .pv-metric strong {
     color: #2e4639;
     font: 600 19px/1.2 'Space Grotesk', sans-serif;
@@ -1677,13 +1682,61 @@ h2 {
     color: #a64e42;
 }
 
+.pv-history-panel {
+    margin-bottom: 14px;
+    padding: 14px 17px;
+}
+
+.pv-history-panel>summary {
+    width: fit-content;
+    color: #456653;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.pv-history-panel[open]>summary {
+    margin-bottom: 10px;
+}
+
+.pv-year-toolbar {
+    min-height: 42px;
+    justify-content: flex-end;
+    padding-bottom: 8px;
+}
+
+.pv-year-toolbar label {
+    color: #78847b;
+    font-size: 10px;
+}
+
+.pv-year-toolbar select {
+    min-width: 115px;
+    height: 29px;
+    padding: 0 8px;
+    border: 1px solid #e4e9e4;
+    border-radius: 4px;
+    color: #52635a;
+    background: #fff;
+    font-size: 10px;
+}
+
 .pv-chart-panel,
-.pv-table-panel {
+.pv-table-panel,
+.pv-year-chart-panel {
     padding: 20px 21px 14px;
 }
 
 .pv-chart-wrap {
     height: 345px;
+}
+
+.pv-year-chart-panel {
+    margin-top: 14px;
+}
+
+.pv-year-chart-wrap {
+    height: 310px;
 }
 
 .pv-table-panel {
@@ -1751,12 +1804,17 @@ h2 {
     }
 
     .pv-chart-panel,
-    .pv-table-panel {
+    .pv-table-panel,
+    .pv-year-chart-panel {
         padding: 15px 13px 10px;
     }
 
     .pv-chart-wrap {
         height: 285px;
+    }
+
+    .pv-year-chart-wrap {
+        height: 275px;
     }
 
     .pv-table-heading {

@@ -43,6 +43,7 @@ export class App {
   protected readonly period = signal<Period>('all');
   protected readonly selectedUtility = signal<Utility>('electricity');
   protected readonly selectedAnnualUtility = signal<Utility>('electricity');
+  protected readonly pvSelectedYear = signal<number | 'all'>(new Date().getFullYear());
   protected readonly currentYear = new Date().getFullYear();
   protected readonly selectedYear = signal(new Date().getFullYear());
   protected readonly years = computed(() => {
@@ -218,7 +219,7 @@ export class App {
     },
   };
   protected readonly pvChartData = computed<ChartData<'line'>>(() => {
-    const readings = [...this.pvReadings()].sort((left, right) => left.date.localeCompare(right.date));
+    const readings = [...this.pvChartReadings()].sort((left, right) => left.date.localeCompare(right.date));
     const series: Array<{
       key: keyof Pick<PvReading, 'generated' | 'consumed' | 'feedIn' | 'gridImport'>;
       label: string;
@@ -248,8 +249,33 @@ export class App {
   protected readonly pvRecentReadings = computed(() =>
     [...this.pvReadings()].sort((left, right) => right.date.localeCompare(left.date)).slice(0, 30),
   );
+  protected readonly pvAvailableYears = computed(() => [...new Set([
+    this.currentYear,
+    ...this.pvReadings().map((reading) => Number(reading.date.slice(0, 4))),
+  ])].sort((left, right) => right - left));
+  protected readonly pvChartReadings = computed(() => this.pvSelectedYear() === 'all'
+    ? this.pvReadings()
+    : this.pvReadings().filter((reading) => Number(reading.date.slice(0, 4)) === this.pvSelectedYear()));
+  protected readonly pvYearlyTotals = computed(() => {
+    const groups = new Map<number, PvReading[]>();
+    for (const reading of this.pvReadings()) {
+      const year = Number(reading.date.slice(0, 4));
+      groups.set(year, [...(groups.get(year) ?? []), reading]);
+    }
+
+    return [...groups.entries()]
+      .sort(([left], [right]) => right - left)
+      .map(([year, readings]) => ({
+        year,
+        generated: readings.reduce((total, reading) => total + Number(reading.generated), 0),
+        consumed: readings.reduce((total, reading) => total + Number(reading.consumed), 0),
+        feedIn: readings.reduce((total, reading) => total + Number(reading.feedIn), 0),
+        gridImport: readings.reduce((total, reading) => total + Number(reading.gridImport), 0),
+      }));
+  });
   protected readonly pvMetrics = computed(() => {
     const readings = this.pvReadings();
+    const currentYearReadings = readings.filter((reading) => Number(reading.date.slice(0, 4)) === this.currentYear);
     const metrics = [
       { key: 'generated', label: 'Erzeugt', field: 'generated' },
       { key: 'consumed', label: 'Verbraucht', field: 'consumed' },
@@ -261,7 +287,32 @@ export class App {
       key: metric.key,
       label: metric.label,
       total: readings.reduce((sum, reading) => sum + Number(reading[metric.field]), 0),
+      currentYear: currentYearReadings.reduce((sum, reading) => sum + Number(reading[metric.field]), 0),
     }));
+  });
+  protected readonly pvYearlyChartData = computed<ChartData<'line'>>(() => {
+    const years = [...this.pvYearlyTotals()].sort((left, right) => left.year - right.year);
+    const series = [
+      { key: 'generated', label: 'Erzeugt', color: '#e7933d' },
+      { key: 'consumed', label: 'Verbraucht', color: '#187663' },
+      { key: 'feedIn', label: 'Einspeisung', color: '#4c79a5' },
+      { key: 'gridImport', label: 'Netzbezug', color: '#bd5d4c' },
+    ] as const;
+
+    return {
+      labels: years.map((entry) => String(entry.year)),
+      datasets: series.map(({ key, label, color }) => ({
+        label,
+        data: years.map((entry) => entry[key]),
+        borderColor: color,
+        backgroundColor: color,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        borderWidth: 2,
+        tension: 0.2,
+        fill: false,
+      })),
+    };
   });
   protected readonly pvChartOptions: ChartOptions<'line'> = {
     responsive: true,
