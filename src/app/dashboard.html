@@ -113,6 +113,41 @@
             </section>
 
             <section class="content-grid overview-content-grid">
+                <article class="panel chart-panel annual-chart-panel">
+                    <div class="panel-heading chart-heading">
+                        <div>
+                            <div class="section-kicker">JAHRESVERLAUF</div>
+                            <h2>Verbrauch pro Jahr</h2>
+                        </div>
+                    </div>
+                    <div class="chart-toolbar">
+                        <div class="utility-tabs" role="group" aria-label="Energieträger im Jahresverlauf auswählen">
+                            @for (utility of utilities; track utility) {
+                            <button type="button"
+                                [class]="'utility-tab ' + utility + (selectedAnnualUtility() === utility ? ' selected' : '')"
+                                (click)="selectedAnnualUtility.set(utility)">
+                                <span class="tab-dot"></span>{{ utilityLabel(utility) }}
+                            </button>
+                            }
+                        </div>
+                    </div>
+                    <div class="chart-wrap annual-chart-wrap">
+                        @if (annualChartHasData()) {
+                        <canvas baseChart [type]="'line'" [data]="annualChartData()" [options]="annualChartOptions"
+                            aria-label="Jahresverbrauch mit Hochrechnung bis Jahresende"></canvas>
+                        } @else {
+                        <div class="chart-empty"><span class="empty-chart-mark">↗</span><strong>Noch keine
+                                Jahreswerte für {{ utilityLabel(selectedAnnualUtility()) }}</strong><span>Erfasse einen
+                                Messwert oder importiere deine Historie.</span><button type="button" class="text-button"
+                                (click)="openDialog()">Messwert eintragen <span>→</span></button></div>
+                        }
+                    </div>
+                    <div class="chart-foot"><span class="chart-legend-dot"></span>{{
+                        utilityLabel(selectedAnnualUtility()) }}<span class="chart-unit">{{
+                            unitLabel(selectedAnnualUtility()) }}</span><span class="chart-foot-note">Gestrichelte
+                            Linie: Hochrechnung bis Jahresende</span></div>
+                </article>
+
                 <article class="panel chart-panel">
                     <div class="panel-heading chart-heading">
                         <div>

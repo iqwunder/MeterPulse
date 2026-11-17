@@ -36,6 +36,7 @@ export class App {
   protected readonly readingUtility = signal<Utility>('electricity');
   protected readonly period = signal<Period>('all');
   protected readonly selectedUtility = signal<Utility>('electricity');
+  protected readonly selectedAnnualUtility = signal<Utility>('electricity');
   protected readonly currentYear = new Date().getFullYear();
   protected readonly selectedYear = signal(new Date().getFullYear());
   protected readonly years = computed(() => {
@@ -133,10 +134,78 @@ export class App {
       }],
     };
   });
+  protected readonly annualChartHasData = computed(() =>
+    this.readings().some((reading) => reading.utility === this.selectedAnnualUtility()),
+  );
+  protected readonly annualChartData = computed<ChartData<'line'>>(() => {
+    const utility = this.selectedAnnualUtility();
+    const readings = this.readings();
+    const intervals = this.usageIntervals();
+    const chartYears = [...new Set([
+      this.currentYear,
+      ...readings
+        .filter((reading) => reading.utility === utility)
+        .map((reading) => Number(reading.recordedAt.slice(0, 4))),
+    ])].sort((left, right) => left - right);
+    const currentYearUsage = this.summaries().find((summary) => summary.utility === utility);
+    const actualValues = chartYears.map((year) => year === this.currentYear
+      ? summarizeUsageSinceFirstReading(readings, intervals, utility, year).consumption
+      : summarizeUsage(intervals, utility, year).consumption);
+    return {
+      labels: [...chartYears.map(String), `${this.currentYear} · Jahresende`],
+      datasets: [
+        {
+          label: 'Jahresverbrauch',
+          data: [...actualValues, null],
+          borderColor: '#187663',
+          backgroundColor: 'rgba(24, 118, 99, 0.10)',
+          pointBackgroundColor: '#187663',
+          pointBorderColor: '#ffffff',
+          pointBorderWidth: 2,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          borderWidth: 3,
+          fill: true,
+          tension: 0.25,
+        },
+        {
+          label: 'Hochrechnung Jahresende',
+          data: [...chartYears.map((year, index) => year === this.currentYear ? actualValues[index] : null),
+          currentYearUsage?.projectedYearEnd ?? null],
+          borderColor: '#e7933d',
+          backgroundColor: '#e7933d',
+          pointBackgroundColor: '#e7933d',
+          pointBorderColor: '#ffffff',
+          pointBorderWidth: 2,
+          pointRadius: (context) => context.dataIndex === chartYears.length ? 6 : 3,
+          pointHoverRadius: 7,
+          borderWidth: 2,
+          borderDash: [6, 4],
+          fill: false,
+          tension: 0,
+        },
+      ],
+    };
+  });
   protected readonly chartOptions: ChartOptions<'line'> = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { display: false }, border: { display: false }, ticks: { color: '#78817c' } },
+      y: { beginAtZero: true, border: { display: false }, grid: { color: '#e8ece8' }, ticks: { color: '#78817c' } },
+    },
+  };
+  protected readonly annualChartOptions: ChartOptions<'line'> = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: true,
+        position: 'bottom',
+        labels: { color: '#78817c', boxWidth: 9, boxHeight: 9, usePointStyle: true, font: { size: 10 } },
+      },
+    },
     scales: {
       x: { grid: { display: false }, border: { display: false }, ticks: { color: '#78817c' } },
       y: { beginAtZero: true, border: { display: false }, grid: { color: '#e8ece8' }, ticks: { color: '#78817c' } },
