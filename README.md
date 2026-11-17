@@ -90,6 +90,16 @@ mariadb -h DB-HOST -u meterpulse -p meterpulse < db/migrations/002-create-pv-dai
 
 Der Import ist vollständig oder gar nicht: Ungültige Zeilen oder doppelte Datumswerte in derselben Datei werden abgelehnt.
 
+### PV-Verkaufsvertrag
+
+Der Bruttoerlös pro kWh wird im PV-Verkaufsvertrag gespeichert. Monatliche Einnahmen ergeben sich aus den eingespeisten kWh der PV-Tageswerte multipliziert mit diesem Preis. Der einstellbare Umsatzsteuersatz teilt den Bruttobetrag rechnerisch in Nettoerlös und enthaltene Umsatzsteuer auf; dies ist keine Einkommensteuerberechnung.
+
+Die Vertragstabelle wird bei einer neuen Datenbank durch [db/schema.sql](db/schema.sql) angelegt. Für bestehende Datenbanken führe einmalig [db/migrations/006-create-pv-feed-in-contract.sql](db/migrations/006-create-pv-feed-in-contract.sql) aus:
+
+```bash
+mariadb -h DB-HOST -u meterpulse -p meterpulse < db/migrations/006-create-pv-feed-in-contract.sql
+```
+
 ## Vertragsdaten
 
 Unter **Verträge** können Vertragsbeginn, monatliche Grundgebühr, Arbeitspreis, Abschlag und optionales Vertragsende je Energieträger gepflegt werden. Für Gas werden zusätzlich Brennwert in kWh/m³ und Zustandszahl erfasst. Der Gaszähler bleibt in m³; für die Abrechnung wird die Menge mit `Brennwert × Zustandszahl` in kWh umgerechnet und mit dem Preis pro kWh bewertet. Bei Wasser werden Trink- und Abwasserkosten pro m³ auf denselben gemessenen Wasserverbrauch angewendet. Niederschlagswasser wird mit dem Jahrespreis pro m² und der versiegelten Fläche berechnet. Die Jahresbilanz zählt aktive Kalendermonate für Grundgebühr und Abschläge. Der erwartete Verbrauch kombiniert die bis zur letzten Ablesung gemessene Nutzung mit einer Hochrechnung des Tagesdurchschnitts für den Rest des Vertragsjahres. Ohne ausreichende Messhistorie wird keine Verbrauchsprognose angezeigt.

@@ -20,6 +20,11 @@ export interface PvReading {
     gridImport: number | string;
 }
 
+export interface PvFeedInContract {
+    grossPricePerKwh: number | string;
+    vatRate: number | string;
+}
+
 export interface UtilityContract {
     utility: Utility;
     contractStart: string;
@@ -64,6 +69,16 @@ export class MeterApiService {
         const formData = new FormData();
         formData.append('file', file);
         return this.http.post<{ imported: number }>('/api/pv-readings/import', formData)
+            .pipe(catchError((error) => this.handleError(error)));
+    }
+
+    getPvContract(): Observable<PvFeedInContract | null> {
+        return this.http.get<PvFeedInContract | null>('/api/pv-contract')
+            .pipe(catchError((error) => this.handleError(error)));
+    }
+
+    savePvContract(contract: PvFeedInContract): Observable<PvFeedInContract> {
+        return this.http.put<PvFeedInContract>('/api/pv-contract', contract)
             .pipe(catchError((error) => this.handleError(error)));
     }
 

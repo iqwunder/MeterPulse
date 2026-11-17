@@ -12,7 +12,7 @@ import {
   summarizeUsageSinceMeterReset,
   usageBetweenDates,
 } from './consumption';
-import { MeterApiService, PvReading, Reading, Utility, UtilityContract } from './meter-api.service';
+import { MeterApiService, PvFeedInContract, PvReading, Reading, Utility, UtilityContract } from './meter-api.service';
 
 type Period = 'all' | 'year';
 const utilities: Utility[] = ['electricity', 'gas', 'water'];
@@ -29,15 +29,20 @@ export class App {
   protected readonly utilities = utilities;
   protected readonly readings = signal<Reading[]>([]);
   protected readonly pvReadings = signal<PvReading[]>([]);
+  protected readonly pvFeedInContract = signal<PvFeedInContract | null>(null);
   protected readonly contracts = signal<UtilityContract[]>([]);
   protected readonly loading = signal(true);
   protected readonly pvLoading = signal(true);
+  protected readonly pvContractLoading = signal(true);
+  protected readonly pvContractSaving = signal(false);
   protected readonly contractLoading = signal(true);
   protected readonly apiError = signal('');
   protected readonly pvApiError = signal('');
+  protected readonly pvContractError = signal('');
   protected readonly contractError = signal('');
   protected readonly notice = signal('');
   protected readonly pvNotice = signal('');
+  protected readonly pvContractNotice = signal('');
   protected readonly contractNotice = signal('');
   protected readonly dialogOpen = signal(false);
   protected readonly helpOpen = signal(false);
@@ -52,6 +57,7 @@ export class App {
   protected readonly selectedUtility = signal<Utility>('electricity');
   protected readonly selectedAnnualUtility = signal<Utility>('electricity');
   protected readonly pvSelectedYear = signal<number | 'all'>(new Date().getFullYear());
+  protected readonly pvRevenueYear = signal(new Date().getFullYear());
   protected readonly currentYear = new Date().getFullYear();
   protected readonly selectedYear = signal(new Date().getFullYear());
   protected readonly years = computed(() => {
@@ -281,6 +287,47 @@ export class App {
         gridImport: readings.reduce((total, reading) => total + Number(reading.gridImport), 0),
       }));
   });
+  protected get pvMonthlyIncomeRows() {
+    const monthlyFeedIn = new Map<number, number>();
+    for (const reading of this.pvReadings()) {
+      const date = new Date(`${reading.date.slice(0, 10)}T00:00:00Z`);
+      if (date.getUTCFullYear() !== this.pvRevenueYear()) continue;
+      const month = date.getUTCMonth();
+      monthlyFeedIn.set(month, (monthlyFeedIn.get(month) ?? 0) + Number(reading.feedIn));
+    }
+
+    const grossPrice = Number(this.pvGrossPricePerKwh);
+    const vatRate = Number(this.pvVatRate);
+    const hasContractValues = this.pvGrossPricePerKwh !== '' && this.pvGrossPricePerKwh !== null
+      && this.pvVatRate !== '' && this.pvVatRate !== null
+      && Number.isFinite(grossPrice) && grossPrice >= 0
+      && Number.isFinite(vatRate) && vatRate >= 0 && vatRate <= 100;
+
+    return Array.from({ length: 12 }, (_, month) => {
+      const feedInKwh = monthlyFeedIn.get(month) ?? 0;
+      const gross = hasContractValues ? this.roundCurrency(feedInKwh * grossPrice) : null;
+      const net = gross === null ? null : this.roundCurrency(gross / (1 + vatRate / 100));
+      return {
+        month,
+        label: new Intl.DateTimeFormat('de-DE', { month: 'long' })
+          .format(new Date(Date.UTC(this.pvRevenueYear(), month, 15, 12))),
+        feedInKwh,
+        gross,
+        net,
+        vat: gross === null || net === null ? null : this.roundCurrency(gross - net),
+      };
+    });
+  }
+  protected get pvRevenueTaxTotals() {
+    const rows = this.pvMonthlyIncomeRows;
+    if (rows.some((row) => row.gross === null || row.net === null || row.vat === null)) return null;
+    return rows.reduce((totals, row) => ({
+      feedInKwh: totals.feedInKwh + row.feedInKwh,
+      gross: totals.gross + (row.gross ?? 0),
+      net: totals.net + (row.net ?? 0),
+      vat: totals.vat + (row.vat ?? 0),
+    }), { feedInKwh: 0, gross: 0, net: 0, vat: 0 });
+  }
   protected readonly pvMetrics = computed(() => {
     const readings = this.pvReadings();
     const currentYearReadings = readings.filter((reading) => Number(reading.date.slice(0, 4)) === this.currentYear);
@@ -353,11 +400,14 @@ export class App {
   protected rainwaterPricePerSqm: number | string | null = '';
   protected sealedAreaSqm: number | string | null = '';
   protected monthlyAdvance: number | string | null = '';
+  protected pvGrossPricePerKwh: number | string | null = '';
+  protected pvVatRate: number | string | null = '';
 
   constructor() {
     this.syncPageFromHash();
     this.loadReadings();
     this.loadPvReadings();
+    this.loadPvContract();
     this.loadContracts();
   }
 
@@ -387,6 +437,36 @@ export class App {
 
   protected formatCurrency(value: number): string {
     return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value);
+  }
+
+  private roundCurrency(value: number): number {
+    return Math.round((value + Number.EPSILON) * 100) / 100;
+  }
+
+  protected savePvContract(event: SubmitEvent): void {
+    event.preventDefault();
+    if (this.pvContractSaving() || this.pvGrossPricePerKwh === '' || this.pvGrossPricePerKwh === null
+      || this.pvVatRate === '' || this.pvVatRate === null) return;
+
+    this.pvContractSaving.set(true);
+    this.pvContractError.set('');
+    this.pvContractNotice.set('');
+    this.api.savePvContract({
+      grossPricePerKwh: Number(this.pvGrossPricePerKwh),
+      vatRate: Number(this.pvVatRate),
+    }).subscribe({
+      next: (contract) => {
+        this.pvFeedInContract.set(contract);
+        this.pvGrossPricePerKwh = Number(contract.grossPricePerKwh);
+        this.pvVatRate = Number(contract.vatRate);
+        this.pvContractSaving.set(false);
+        this.pvContractNotice.set('PV-Verkaufsvertrag wurde gespeichert.');
+      },
+      error: (error: Error) => {
+        this.pvContractSaving.set(false);
+        this.pvContractError.set(error.message);
+      },
+    });
   }
 
   protected contractFeeTotal(months: number): number {
@@ -706,6 +786,23 @@ export class App {
       error: (error: Error) => {
         this.pvApiError.set(error.message);
         this.pvLoading.set(false);
+      },
+    });
+  }
+
+  protected loadPvContract(): void {
+    this.pvContractLoading.set(true);
+    this.api.getPvContract().subscribe({
+      next: (contract) => {
+        this.pvFeedInContract.set(contract);
+        this.pvGrossPricePerKwh = contract ? Number(contract.grossPricePerKwh) : '';
+        this.pvVatRate = contract ? Number(contract.vatRate) : '';
+        this.pvContractError.set('');
+        this.pvContractLoading.set(false);
+      },
+      error: (error: Error) => {
+        this.pvContractError.set(error.message);
+        this.pvContractLoading.set(false);
       },
     });
   }

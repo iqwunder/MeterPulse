@@ -351,6 +351,104 @@
                 }
             </section>
 
+            <section class="panel pv-contract-panel">
+                <div class="panel-heading">
+                    <div>
+                        <div class="section-kicker">EINSPEISEVERTRAG</div>
+                        <h2>Verkaufsvergütung</h2>
+                    </div>
+                </div>
+                @if (pvContractError()) {
+                <div class="alert alert-error" role="alert">
+                    <span class="alert-mark">!</span>
+                    <span><strong>PV-Vertrag nicht verfügbar</strong><small>{{ pvContractError() }}</small></span>
+                    <button type="button" class="text-button" (click)="loadPvContract()">Erneut versuchen</button>
+                </div>
+                }
+                @if (pvContractNotice()) {
+                <div class="alert alert-success" role="status"><span class="success-mark">✓</span>{{ pvContractNotice()
+                    }}</div>
+                }
+                @if (pvContractLoading()) {
+                <div class="contract-loading">Verkaufsvertrag wird geladen …</div>
+                } @else {
+                <form class="pv-contract-form" (submit)="savePvContract($event)">
+                    <label class="field-label">Einnahme pro kWh · brutto
+                        <span class="input-with-unit"><input name="pvGrossPricePerKwh" [(ngModel)]="pvGrossPricePerKwh"
+                                required type="number" min="0" step="0.000001" placeholder="0,00" /><span>€ /
+                                kWh</span></span>
+                    </label>
+                    <label class="field-label">Umsatzsteuersatz
+                        <span class="input-with-unit"><input name="pvVatRate" [(ngModel)]="pvVatRate" required
+                                type="number" min="0" max="100" step="0.01"
+                                placeholder="z. B. 19" /><span>%</span></span>
+                    </label>
+                    <button class="button button-primary" type="submit"
+                        [disabled]="pvContractSaving() || pvGrossPricePerKwh === '' || pvVatRate === ''">
+                        {{ pvContractSaving() ? 'Wird gespeichert …' : 'Vertrag speichern' }}
+                    </button>
+                </form>
+                <p class="contract-footnote">Der Steuersatz wird für die rechnerische Aufteilung des Bruttopreises
+                    verwendet. Bitte passend zum Vertrag einstellen.</p>
+                }
+            </section>
+
+            <section class="panel pv-revenue-panel">
+                <div class="panel-heading pv-table-heading">
+                    <div>
+                        <div class="section-kicker">EINSPEISEVERGÜTUNG</div>
+                        <h2>Monatliche Einnahmen</h2>
+                    </div>
+                    <label class="pv-year-toolbar">Jahr
+                        <select aria-label="Jahr der PV-Einnahmen auswählen" [ngModel]="pvRevenueYear()"
+                            (ngModelChange)="pvRevenueYear.set(+$event)">
+                            @for (year of pvAvailableYears(); track year) {
+                            <option [ngValue]="year">{{ year }}</option>
+                            }
+                        </select>
+                    </label>
+                </div>
+                @if (pvRevenueTaxTotals; as totals) {
+                <div class="pv-tax-summary" aria-label="Steuerübersicht für Einspeiseerlöse">
+                    <div><span>Einspeisung</span><strong>{{ formatValue(totals.feedInKwh) }} <small>kWh</small></strong>
+                    </div>
+                    <div><span>Einnahmen brutto</span><strong>{{ formatCurrency(totals.gross) }}</strong></div>
+                    <div><span>Einnahmen netto</span><strong>{{ formatCurrency(totals.net) }}</strong></div>
+                    <div><span>Enthaltene USt · {{ pvVatRate }}%</span><strong>{{ formatCurrency(totals.vat) }}</strong>
+                    </div>
+                </div>
+                } @else {
+                <div class="pv-revenue-empty">Speichere zuerst Bruttovergütung und Umsatzsteuersatz, um Einnahmen und
+                    Steueranteil zu berechnen.</div>
+                }
+                <div class="pv-table-wrap">
+                    <table class="pv-table pv-revenue-table">
+                        <thead>
+                            <tr>
+                                <th>Monat</th>
+                                <th>Einspeisung</th>
+                                <th>Brutto</th>
+                                <th>Netto</th>
+                                <th>Enthaltene USt</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (row of pvMonthlyIncomeRows; track row.month) {
+                            <tr>
+                                <th scope="row">{{ row.label }}</th>
+                                <td>{{ formatValue(row.feedInKwh) }} kWh</td>
+                                <td>{{ row.gross === null ? '–' : formatCurrency(row.gross) }}</td>
+                                <td>{{ row.net === null ? '–' : formatCurrency(row.net) }}</td>
+                                <td>{{ row.vat === null ? '–' : formatCurrency(row.vat) }}</td>
+                            </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <p class="contract-footnote">USt-Anteil aus den Bruttoerlösen zurückgerechnet. Keine
+                    Einkommensteuerberechnung.</p>
+            </section>
+
             @if (pvYearlyTotals().length) {
             <details class="panel pv-history-panel">
                 <summary>Jahresstatistik öffnen</summary>

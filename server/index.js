@@ -140,6 +140,20 @@ function validateContract(utility, input) {
     return { value };
 }
 
+function validatePvFeedInContract(input) {
+    const value = {
+        grossPricePerKwh: parseEnergyValue(input?.grossPricePerKwh),
+        vatRate: parseEnergyValue(input?.vatRate),
+    };
+    if (!Number.isFinite(value.grossPricePerKwh) || value.grossPricePerKwh < 0 || value.grossPricePerKwh > 999999.999999) {
+        return { error: 'Der Bruttopreis pro kWh muss eine nichtnegative Zahl sein.' };
+    }
+    if (!Number.isFinite(value.vatRate) || value.vatRate < 0 || value.vatRate > 100) {
+        return { error: 'Der Umsatzsteuersatz muss zwischen 0 und 100 Prozent liegen.' };
+    }
+    return { value };
+}
+
 app.get('/api/health', asyncRoute(async (_req, res) => {
     await pool.query('SELECT 1');
     res.json({ status: 'ok' });
@@ -280,6 +294,30 @@ app.get('/api/pv-readings', asyncRoute(async (_req, res) => {
         ORDER BY recorded_at DESC
     `);
     res.json(rows);
+}));
+
+app.get('/api/pv-contract', asyncRoute(async (_req, res) => {
+    const [rows] = await pool.query(`
+        SELECT gross_price_per_kwh AS grossPricePerKwh, vat_rate AS vatRate
+        FROM pv_feed_in_contract
+        WHERE id = 1
+    `);
+    res.json(rows[0] ?? null);
+}));
+
+app.put('/api/pv-contract', asyncRoute(async (req, res) => {
+    const result = validatePvFeedInContract(req.body);
+    if (result.error) return res.status(400).json({ error: result.error });
+
+    const contract = result.value;
+    await pool.execute(`
+        INSERT INTO pv_feed_in_contract (id, gross_price_per_kwh, vat_rate)
+        VALUES (1, ?, ?)
+        ON DUPLICATE KEY UPDATE
+            gross_price_per_kwh = VALUES(gross_price_per_kwh),
+            vat_rate = VALUES(vat_rate)
+    `, [contract.grossPricePerKwh, contract.vatRate]);
+    res.json(contract);
 }));
 
 app.post('/api/pv-readings/import', upload.single('file'), asyncRoute(async (req, res) => {
