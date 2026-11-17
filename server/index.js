@@ -107,6 +107,9 @@ function validateContract(utility, input) {
         unitPrice: parseEnergyValue(input?.unitPrice),
         heatingValue: utility === 'gas' ? parseEnergyValue(input?.heatingValue) : null,
         conditionNumber: utility === 'gas' ? parseEnergyValue(input?.conditionNumber) : null,
+        wastewaterPrice: utility === 'water' ? parseEnergyValue(input?.wastewaterPrice) : null,
+        rainwaterPricePerSqm: utility === 'water' ? parseEnergyValue(input?.rainwaterPricePerSqm) : null,
+        sealedAreaSqm: utility === 'water' ? parseEnergyValue(input?.sealedAreaSqm) : null,
         monthlyAdvance: parseEnergyValue(input?.monthlyAdvance),
         contractEnd,
     };
@@ -119,6 +122,19 @@ function validateContract(utility, input) {
     }
     if (utility === 'gas' && (!Number.isFinite(value.conditionNumber) || value.conditionNumber <= 0)) {
         return { error: 'Die Zustandszahl muss für Gas eine positive Zahl sein.' };
+    }
+    if (utility === 'water') {
+        const waterFieldLimits = {
+            wastewaterPrice: 999999.999999,
+            rainwaterPricePerSqm: 999999.999999,
+            sealedAreaSqm: 99999999.9999,
+        };
+        const invalidWaterField = [
+            ['wastewaterPrice', value.wastewaterPrice],
+            ['rainwaterPricePerSqm', value.rainwaterPricePerSqm],
+            ['sealedAreaSqm', value.sealedAreaSqm],
+        ].find(([field, amount]) => !Number.isFinite(amount) || amount < 0 || amount > waterFieldLimits[field]);
+        if (invalidWaterField) return { error: `${invalidWaterField[0]} muss eine nichtnegative Zahl sein.` };
     }
 
     return { value };
@@ -137,6 +153,9 @@ app.get('/api/contracts', asyncRoute(async (_req, res) => {
             unit_price AS unitPrice,
             heating_value AS heatingValue,
             condition_number AS conditionNumber,
+            wastewater_price AS wastewaterPrice,
+            rainwater_price_per_sqm AS rainwaterPricePerSqm,
+            sealed_area_sqm AS sealedAreaSqm,
             monthly_advance AS monthlyAdvance,
             DATE_FORMAT(contract_end, '%Y-%m-%d') AS contractEnd
         FROM utility_contracts
@@ -151,18 +170,23 @@ app.put('/api/contracts/:utility', asyncRoute(async (req, res) => {
     const contract = result.value;
     await pool.execute(`
         INSERT INTO utility_contracts
-            (utility, contract_start, monthly_fee, unit_price, heating_value, condition_number, monthly_advance, contract_end)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (utility, contract_start, monthly_fee, unit_price, heating_value, condition_number,
+            wastewater_price, rainwater_price_per_sqm, sealed_area_sqm, monthly_advance, contract_end)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
             contract_start = VALUES(contract_start),
             monthly_fee = VALUES(monthly_fee),
             unit_price = VALUES(unit_price),
             heating_value = VALUES(heating_value),
             condition_number = VALUES(condition_number),
+            wastewater_price = VALUES(wastewater_price),
+            rainwater_price_per_sqm = VALUES(rainwater_price_per_sqm),
+            sealed_area_sqm = VALUES(sealed_area_sqm),
             monthly_advance = VALUES(monthly_advance),
             contract_end = VALUES(contract_end)
     `, [contract.utility, contract.contractStart, contract.monthlyFee, contract.unitPrice,
-    contract.heatingValue, contract.conditionNumber, contract.monthlyAdvance, contract.contractEnd]);
+    contract.heatingValue, contract.conditionNumber, contract.wastewaterPrice, contract.rainwaterPricePerSqm,
+    contract.sealedAreaSqm, contract.monthlyAdvance, contract.contractEnd]);
 
     res.json(contract);
 }));

@@ -27,6 +27,9 @@ export interface UtilityContract {
     unitPrice: number | string;
     heatingValue: number | string | null;
     conditionNumber: number | string | null;
+    wastewaterPrice: number | string | null;
+    rainwaterPricePerSqm: number | string | null;
+    sealedAreaSqm: number | string | null;
     monthlyAdvance: number | string;
     contractEnd: string | null;
 }

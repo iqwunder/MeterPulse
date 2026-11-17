@@ -349,6 +349,9 @@ export class App {
   protected unitPrice: number | string | null = '';
   protected heatingValue: number | string | null = '';
   protected conditionNumber: number | string | null = '';
+  protected wastewaterPrice: number | string | null = '';
+  protected rainwaterPricePerSqm: number | string | null = '';
+  protected sealedAreaSqm: number | string | null = '';
   protected monthlyAdvance: number | string | null = '';
 
   constructor() {
@@ -410,6 +413,11 @@ export class App {
       if (gasFactors.some((factor) => factor === '' || factor === null
         || !Number.isFinite(Number(factor)) || Number(factor) <= 0)) return null;
     }
+    if (this.contractUtility() === 'water') {
+      const waterValues = [this.wastewaterPrice, this.rainwaterPricePerSqm, this.sealedAreaSqm];
+      if (waterValues.some((value) => value === '' || value === null
+        || !Number.isFinite(Number(value)) || Number(value) < 0)) return null;
+    }
     if (this.contractEnd && (!/^\d{4}-\d{2}-\d{2}$/.test(this.contractEnd) || this.contractEnd < this.contractStart)) {
       return null;
     }
@@ -434,6 +442,10 @@ export class App {
         expectedConsumption: 0,
         billableConsumption: 0,
         billableUnit: this.contractUtility() === 'gas' ? 'kWh' : this.unitLabel(this.contractUtility()),
+        potableWaterCosts: 0,
+        wastewaterCosts: 0,
+        rainwaterCosts: 0,
+        wastewaterConsumption: 0,
         expectedCosts: 0,
         balance: 0,
         activeMonths: 0,
@@ -474,9 +486,18 @@ export class App {
       ? Number(this.heatingValue) * Number(this.conditionNumber)
       : 1;
     const billableConsumption = expectedConsumption === null ? null : expectedConsumption * conversionFactor;
+    const potableWaterCosts = this.contractUtility() === 'water' && expectedConsumption !== null
+      ? expectedConsumption * unitPrice : null;
+    const wastewaterCosts = this.contractUtility() === 'water' && expectedConsumption !== null
+      ? expectedConsumption * Number(this.wastewaterPrice) : null;
+    const rainwaterCosts = this.contractUtility() === 'water'
+      ? Number(this.rainwaterPricePerSqm) * Number(this.sealedAreaSqm) * activeMonths / 12
+      : null;
     const expectedCosts = expectedConsumption === null
       ? null
-      : activeMonths * monthlyFee + (billableConsumption ?? 0) * unitPrice;
+      : activeMonths * monthlyFee + (this.contractUtility() === 'water'
+        ? (potableWaterCosts ?? 0) + (wastewaterCosts ?? 0) + (rainwaterCosts ?? 0)
+        : (billableConsumption ?? 0) * unitPrice);
     const advancesByYearEnd = activeMonths * monthlyAdvance;
 
     return {
@@ -486,6 +507,10 @@ export class App {
       expectedConsumption,
       billableConsumption,
       billableUnit: this.contractUtility() === 'gas' ? 'kWh' : this.unitLabel(this.contractUtility()),
+      potableWaterCosts,
+      wastewaterCosts,
+      rainwaterCosts,
+      wastewaterConsumption: this.contractUtility() === 'water' ? expectedConsumption : null,
       expectedCosts,
       balance: expectedCosts === null ? null : advancesByYearEnd - expectedCosts,
       activeMonths,
@@ -561,6 +586,9 @@ export class App {
       unitPrice: Number(this.unitPrice),
       heatingValue: this.contractUtility() === 'gas' ? Number(this.heatingValue) : null,
       conditionNumber: this.contractUtility() === 'gas' ? Number(this.conditionNumber) : null,
+      wastewaterPrice: this.contractUtility() === 'water' ? Number(this.wastewaterPrice) : null,
+      rainwaterPricePerSqm: this.contractUtility() === 'water' ? Number(this.rainwaterPricePerSqm) : null,
+      sealedAreaSqm: this.contractUtility() === 'water' ? Number(this.sealedAreaSqm) : null,
       monthlyAdvance: Number(this.monthlyAdvance),
       contractEnd: this.contractEnd || null,
     }).subscribe({
@@ -708,6 +736,12 @@ export class App {
       ? '' : Number(contract.heatingValue);
     this.conditionNumber = contract?.conditionNumber === null || contract?.conditionNumber === undefined
       ? '' : Number(contract.conditionNumber);
+    this.wastewaterPrice = contract?.wastewaterPrice === null || contract?.wastewaterPrice === undefined
+      ? '' : Number(contract.wastewaterPrice);
+    this.rainwaterPricePerSqm = contract?.rainwaterPricePerSqm === null || contract?.rainwaterPricePerSqm === undefined
+      ? '' : Number(contract.rainwaterPricePerSqm);
+    this.sealedAreaSqm = contract?.sealedAreaSqm === null || contract?.sealedAreaSqm === undefined
+      ? '' : Number(contract.sealedAreaSqm);
     this.monthlyAdvance = contract ? Number(contract.monthlyAdvance) : '';
   }
 

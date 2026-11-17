@@ -92,16 +92,17 @@ Der Import ist vollständig oder gar nicht: Ungültige Zeilen oder doppelte Datu
 
 ## Vertragsdaten
 
-Unter **Verträge** können Vertragsbeginn, monatliche Grundgebühr, Arbeitspreis, Abschlag und optionales Vertragsende je Energieträger gepflegt werden. Für Gas werden zusätzlich Brennwert in kWh/m³ und Zustandszahl erfasst. Der Gaszähler bleibt in m³; für die Abrechnung wird die Menge mit `Brennwert × Zustandszahl` in kWh umgerechnet und mit dem Preis pro kWh bewertet. Die Jahresbilanz zählt aktive Kalendermonate für Grundgebühr und Abschläge. Der erwartete Verbrauch kombiniert die bis zur letzten Ablesung gemessene Nutzung mit einer Hochrechnung des Tagesdurchschnitts für den Rest des Vertragsjahres. Ohne ausreichende Messhistorie wird keine Verbrauchsprognose angezeigt.
+Unter **Verträge** können Vertragsbeginn, monatliche Grundgebühr, Arbeitspreis, Abschlag und optionales Vertragsende je Energieträger gepflegt werden. Für Gas werden zusätzlich Brennwert in kWh/m³ und Zustandszahl erfasst. Der Gaszähler bleibt in m³; für die Abrechnung wird die Menge mit `Brennwert × Zustandszahl` in kWh umgerechnet und mit dem Preis pro kWh bewertet. Bei Wasser werden Trink- und Abwasserkosten pro m³ auf denselben gemessenen Wasserverbrauch angewendet. Niederschlagswasser wird mit dem Jahrespreis pro m² und der versiegelten Fläche berechnet. Die Jahresbilanz zählt aktive Kalendermonate für Grundgebühr und Abschläge. Der erwartete Verbrauch kombiniert die bis zur letzten Ablesung gemessene Nutzung mit einer Hochrechnung des Tagesdurchschnitts für den Rest des Vertragsjahres. Ohne ausreichende Messhistorie wird keine Verbrauchsprognose angezeigt.
 
-Die Tabelle wird bei einer neuen Datenbank durch [db/schema.sql](db/schema.sql) angelegt. Für eine bestehende Datenbank, auf der noch keine Vertragstabelle existiert, führe die Migrationen 003 und danach 004 aus:
+Die Tabelle wird bei einer neuen Datenbank durch [db/schema.sql](db/schema.sql) angelegt. Für eine bestehende Datenbank, auf der noch keine Vertragstabelle existiert, führe die Migrationen 003, 004 und 005 in dieser Reihenfolge aus:
 
 ```bash
 mariadb -h DB-HOST -u meterpulse -p meterpulse < db/migrations/003-create-utility-contracts.sql
 mariadb -h DB-HOST -u meterpulse -p meterpulse < db/migrations/004-add-gas-contract-factors.sql
+mariadb -h DB-HOST -u meterpulse -p meterpulse < db/migrations/005-add-water-contract-rates.sql
 ```
 
-Wenn Migration 003 bereits ausgeführt wurde, genügt Migration 004.
+Wenn Migration 003 bereits ausgeführt wurde, müssen noch 004 und 005 ausgeführt werden. Wenn auch Migration 004 bereits ausgeführt wurde, genügt Migration 005.
 
 ## Produktionsstart
 

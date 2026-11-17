@@ -528,8 +528,8 @@
                                         type="number" min="0" step="0.01" placeholder="0,00" /><span>€ /
                                         Monat</span></span>
                             </label>
-                            <label class="field-label">Preis pro {{ contractUtility() === 'gas' ? 'kWh' :
-                                unitLabel(contractUtility()) }}
+                            <label class="field-label">{{ contractUtility() === 'water' ? 'Trinkwasserpreis' :
+                                'Preis pro ' + (contractUtility() === 'gas' ? 'kWh' : unitLabel(contractUtility())) }}
                                 <span class="input-with-unit"><input name="unitPrice" [(ngModel)]="unitPrice" required
                                         type="number" min="0" step="0.0001" placeholder="0,00" /><span>€ / {{
                                         contractUtility() === 'gas' ? 'kWh' : unitLabel(contractUtility())
@@ -548,6 +548,25 @@
                                     min="0.000001" step="0.000001" placeholder="0,960000" />
                             </label>
                         </div>
+                        }
+                        @if (contractUtility() === 'water') {
+                        <div class="field-row water-rate-row">
+                            <label class="field-label">Abwasserpreis
+                                <span class="input-with-unit"><input name="wastewaterPrice"
+                                        [(ngModel)]="wastewaterPrice" required type="number" min="0" step="0.0001"
+                                        placeholder="0,00" /><span>€ / m³</span></span>
+                            </label>
+                            <label class="field-label">Niederschlagswasserpreis
+                                <span class="input-with-unit"><input name="rainwaterPricePerSqm"
+                                        [(ngModel)]="rainwaterPricePerSqm" required type="number" min="0" step="0.0001"
+                                        placeholder="0,00" /><span>€ / m² / Jahr</span></span>
+                            </label>
+                        </div>
+                        <label class="field-label">Versiegelte Fläche
+                            <span class="input-with-unit"><input name="sealedAreaSqm" [(ngModel)]="sealedAreaSqm"
+                                    required type="number" min="0" step="0.01"
+                                    placeholder="0,00" /><span>m²</span></span>
+                        </label>
                         }
                         <div class="field-row">
                             <label class="field-label">Monatlicher Abschlag
@@ -612,6 +631,28 @@
                             <dd>{{ projection.expectedConsumption === null ? '–' :
                                 formatValue(projection.expectedConsumption) + ' ' + unitLabel(contractUtility()) }}</dd>
                         </div>
+                        @if (contractUtility() === 'water') {
+                        <div>
+                            <dt>Trinkwasserkosten</dt>
+                            <dd>{{ projection.potableWaterCosts === null ? '–' :
+                                formatCurrency(projection.potableWaterCosts) }}</dd>
+                        </div>
+                        <div>
+                            <dt>Abwasserverbrauch · wie Wasserzähler</dt>
+                            <dd>{{ projection.wastewaterConsumption === null ? '–' :
+                                formatValue(projection.wastewaterConsumption) + ' m³' }}</dd>
+                        </div>
+                        <div>
+                            <dt>Abwasserkosten</dt>
+                            <dd>{{ projection.wastewaterCosts === null ? '–' :
+                                formatCurrency(projection.wastewaterCosts) }}</dd>
+                        </div>
+                        <div>
+                            <dt>Niederschlagswasser · {{ formatValue(sealedAreaSqm || 0) }} m² versiegelt</dt>
+                            <dd>{{ projection.rainwaterCosts === null ? '–' : formatCurrency(projection.rainwaterCosts)
+                                }}</dd>
+                        </div>
+                        }
                         @if (contractUtility() === 'gas') {
                         <div>
                             <dt>Abrechenbare Energiemenge erwartet</dt>
