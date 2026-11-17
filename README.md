@@ -100,11 +100,13 @@ Die Vertragstabelle wird bei einer neuen Datenbank durch [db/schema.sql](db/sche
 mariadb -h DB-HOST -u meterpulse -p meterpulse < db/migrations/006-create-pv-feed-in-contract.sql
 ```
 
-Die tatsächlichen Bruttoauszahlungen der Stadtwerke können pro Monat eingetragen werden. Die Jahresstatistik summiert gespeicherte Auszahlungen und vergleicht sie, sofern PV-Messwerte und Vertragspreis vorliegen, mit der errechneten Bruttovergütung. Für bestehende Datenbanken führe danach einmalig [db/migrations/007-create-pv-utility-payments.sql](db/migrations/007-create-pv-utility-payments.sql) aus:
+Die tatsächlichen Bruttozahlungen an oder von den Stadtwerken werden monatlich erfasst: positive Werte sind erhaltene Einnahmen, negative Werte gezahlte Beträge. Alle zwölf Monatswerte werden gemeinsam gespeichert. Die Jahresstatistik weist die Umsatzsteuer aus erhaltenen und gezahlten Beträgen getrennt aus und vergleicht positive Auszahlungen, sofern PV-Messwerte und Vertragspreis vorliegen, mit der errechneten Bruttovergütung. Für bestehende Datenbanken führe danach einmalig [db/migrations/007-create-pv-utility-payments.sql](db/migrations/007-create-pv-utility-payments.sql) aus:
 
 ```bash
 mariadb -h DB-HOST -u meterpulse -p meterpulse < db/migrations/007-create-pv-utility-payments.sql
 ```
+
+Wenn Migration 007 bereits ausgeführt wurde, muss zusätzlich [db/migrations/008-allow-negative-pv-utility-payments.sql](db/migrations/008-allow-negative-pv-utility-payments.sql) ausgeführt werden, damit auch negative Zahlungen gespeichert werden können.
 
 ## Vertragsdaten
 

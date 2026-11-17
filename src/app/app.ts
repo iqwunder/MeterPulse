@@ -45,7 +45,7 @@ export class App {
   protected readonly pvContractLoading = signal(true);
   protected readonly pvContractSaving = signal(false);
   protected readonly pvPaymentsLoading = signal(true);
-  protected readonly pvPaymentSavingMonth = signal<number | null>(null);
+  protected readonly pvPaymentsSaving = signal(false);
   protected readonly contractLoading = signal(true);
   protected readonly apiError = signal('');
   protected readonly pvApiError = signal('');
@@ -348,17 +348,32 @@ export class App {
     );
     if (!enteredPayments.length) return null;
 
-    const receivedGross = this.roundCurrency(enteredPayments.reduce(
-      (total, payment) => total + Number(payment.receivedGross),
-      0,
-    ));
+    const positivePayments = enteredPayments.filter((payment) => Number(payment.receivedGross) > 0);
+    const negativePayments = enteredPayments.filter((payment) => Number(payment.receivedGross) < 0);
+    const receivedGross = positivePayments.length
+      ? this.roundCurrency(positivePayments.reduce((total, payment) => total + Number(payment.receivedGross), 0))
+      : null;
+    const paidGross = negativePayments.length
+      ? this.roundCurrency(-negativePayments.reduce((total, payment) => total + Number(payment.receivedGross), 0))
+      : null;
+    const vatRate = Number(this.pvVatRate);
+    const hasVatRate = this.pvVatRate !== '' && this.pvVatRate !== null
+      && Number.isFinite(vatRate) && vatRate >= 0 && vatRate <= 100;
+    const vatReceived = receivedGross === null || !hasVatRate
+      ? null : this.roundCurrency(receivedGross * vatRate / (100 + vatRate));
+    const vatPaid = paidGross === null || !hasVatRate
+      ? null : this.roundCurrency(paidGross * vatRate / (100 + vatRate));
     const hasFeedInData = this.pvReadings().some((reading) =>
       Number(reading.date.slice(0, 4)) === this.pvRevenueYear(),
     );
-    const expectedGross = hasFeedInData ? this.pvRevenueTaxTotals?.gross ?? null : null;
+    const expectedGross = hasFeedInData && receivedGross !== null ? this.pvRevenueTaxTotals?.gross ?? null : null;
     return {
       receivedGross,
-      difference: expectedGross === null ? null : this.roundCurrency(receivedGross - expectedGross),
+      paidGross,
+      vatReceived,
+      vatPaid,
+      difference: expectedGross === null || receivedGross === null
+        ? null : this.roundCurrency(receivedGross - expectedGross),
     };
   }
   protected readonly pvMetrics = computed(() => {
@@ -473,6 +488,10 @@ export class App {
     return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value);
   }
 
+  protected formatOptionalCurrency(value: number | null): string {
+    return value === null ? 'n. v.' : this.formatCurrency(value);
+  }
+
   private roundCurrency(value: number): number {
     return Math.round((value + Number.EPSILON) * 100) / 100;
   }
@@ -508,30 +527,40 @@ export class App {
     this.loadPvPayments();
   }
 
-  protected savePvPayment(month: number): void {
-    if (this.pvPaymentSavingMonth() !== null) return;
-    const rawAmount = this.pvPaymentInputs[month];
-    const receivedGross = rawAmount === '' || rawAmount === null || rawAmount === undefined
-      ? null
-      : Number(rawAmount);
-    if (receivedGross !== null && (!Number.isFinite(receivedGross) || receivedGross < 0)) return;
-
+  protected savePvPayments(): void {
+    if (this.pvPaymentsSaving()) return;
     const year = this.pvRevenueYear();
-    this.pvPaymentSavingMonth.set(month);
+    const payments = Array.from({ length: 12 }, (_, index) => {
+      const month = index + 1;
+      const rawAmount = this.pvPaymentInputs[month];
+      const receivedGross = rawAmount === '' || rawAmount === null || rawAmount === undefined
+        ? null : Number(rawAmount);
+      return { month, receivedGross };
+    });
+    if (payments.some(({ receivedGross }) => receivedGross !== null
+      && (!Number.isFinite(receivedGross) || Math.abs(receivedGross) > 9999999999.99))) {
+      this.pvPaymentsError.set('Bitte prüfe die Monatsbeträge. Zulässig sind positive und negative Werte bis 9.999.999.999,99 €.');
+      return;
+    }
+
+    this.pvPaymentsSaving.set(true);
     this.pvPaymentsError.set('');
     this.pvPaymentsNotice.set('');
-    this.api.savePvPayment(year, month, receivedGross).subscribe({
-      next: (payment) => {
-        this.pvUtilityPayments.update((payments) => [
-          ...payments.filter((entry) => entry.year !== year || entry.month !== month),
-          payment,
+    this.api.savePvPayments(year, payments).subscribe({
+      next: (savedPayments) => {
+        this.pvUtilityPayments.update((existing) => [
+          ...existing.filter((entry) => entry.year !== year),
+          ...savedPayments,
         ]);
-        this.pvPaymentInputs[month] = payment.receivedGross === null ? '' : Number(payment.receivedGross);
-        this.pvPaymentSavingMonth.set(null);
-        this.pvPaymentsNotice.set('Monatszahlung wurde gespeichert.');
+        for (const payment of savedPayments) {
+          this.pvPaymentInputs[payment.month] = payment.receivedGross === null
+            ? '' : Number(payment.receivedGross);
+        }
+        this.pvPaymentsSaving.set(false);
+        this.pvPaymentsNotice.set('Alle Monatszahlungen wurden gespeichert.');
       },
       error: (error: Error) => {
-        this.pvPaymentSavingMonth.set(null);
+        this.pvPaymentsSaving.set(false);
         this.pvPaymentsError.set(error.message);
       },
     });

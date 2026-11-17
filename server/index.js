@@ -154,24 +154,39 @@ function validatePvFeedInContract(input) {
     return { value };
 }
 
-function validatePvUtilityPayment(yearInput, monthInput, input) {
+function parseSignedEnergyValue(input) {
+    const normalized = String(input ?? '').trim().replace(/\s/g, '').replace(',', '.');
+    if (!/^-?(?:\d+(?:\.\d*)?|\.\d+)$/.test(normalized)) return Number.NaN;
+    return Number(normalized);
+}
+
+function validatePvUtilityPayments(yearInput, input) {
     const year = Number(yearInput);
-    const month = Number(monthInput);
     if (!/^\d{4}$/.test(String(yearInput)) || year < 1900 || year > 9999) {
         return { error: 'Das Jahr muss vierstellig zwischen 1900 und 9999 liegen.' };
     }
-    if (!/^\d{1,2}$/.test(String(monthInput)) || month < 1 || month > 12) {
-        return { error: 'Der Monat muss zwischen 1 und 12 liegen.' };
+    if (!Array.isArray(input?.payments) || input.payments.length !== 12) {
+        return { error: 'Es müssen genau zwölf Monatswerte übermittelt werden.' };
     }
 
-    const rawAmount = input?.receivedGross;
-    const receivedGross = rawAmount === null || rawAmount === '' || rawAmount === undefined
-        ? null
-        : parseEnergyValue(rawAmount);
-    if (receivedGross !== null && (!Number.isFinite(receivedGross) || receivedGross < 0 || receivedGross > 9999999999.99)) {
-        return { error: 'Die erhaltene Auszahlung muss eine nichtnegative Zahl sein.' };
+    const months = new Set();
+    const payments = [];
+    for (const entry of input.payments) {
+        const month = Number(entry?.month);
+        if (!Number.isInteger(month) || month < 1 || month > 12 || months.has(month)) {
+            return { error: 'Jeder Monat muss genau einmal zwischen 1 und 12 enthalten sein.' };
+        }
+        months.add(month);
+        const rawAmount = entry?.receivedGross;
+        const receivedGross = rawAmount === null || rawAmount === '' || rawAmount === undefined
+            ? null
+            : parseSignedEnergyValue(rawAmount);
+        if (receivedGross !== null && (!Number.isFinite(receivedGross) || Math.abs(receivedGross) > 9999999999.99)) {
+            return { error: 'Der Bruttobetrag muss im gültigen Zahlenbereich liegen.' };
+        }
+        payments.push({ year, month, receivedGross });
     }
-    return { value: { year, month, receivedGross } };
+    return { value: payments.sort((left, right) => left.month - right.month) };
 }
 
 app.get('/api/health', asyncRoute(async (_req, res) => {
@@ -355,17 +370,29 @@ app.get('/api/pv-payments', asyncRoute(async (req, res) => {
     res.json(rows);
 }));
 
-app.put('/api/pv-payments/:year/:month', asyncRoute(async (req, res) => {
-    const result = validatePvUtilityPayment(req.params.year, req.params.month, req.body);
+app.put('/api/pv-payments/:year', asyncRoute(async (req, res) => {
+    const result = validatePvUtilityPayments(req.params.year, req.body);
     if (result.error) return res.status(400).json({ error: result.error });
 
-    const payment = result.value;
-    await pool.execute(`
-        INSERT INTO pv_utility_payments (payment_year, payment_month, received_gross)
-        VALUES (?, ?, ?)
-        ON DUPLICATE KEY UPDATE received_gross = VALUES(received_gross)
-    `, [payment.year, payment.month, payment.receivedGross]);
-    res.json(payment);
+    const payments = result.value;
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
+        for (const payment of payments) {
+            await connection.execute(`
+                INSERT INTO pv_utility_payments (payment_year, payment_month, received_gross)
+                VALUES (?, ?, ?)
+                ON DUPLICATE KEY UPDATE received_gross = VALUES(received_gross)
+            `, [payment.year, payment.month, payment.receivedGross]);
+        }
+        await connection.commit();
+    } catch (error) {
+        await connection.rollback();
+        throw error;
+    } finally {
+        connection.release();
+    }
+    res.json(payments);
 }));
 
 app.post('/api/pv-readings/import', upload.single('file'), asyncRoute(async (req, res) => {

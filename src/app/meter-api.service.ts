@@ -93,8 +93,8 @@ export class MeterApiService {
             .pipe(catchError((error) => this.handleError(error)));
     }
 
-    savePvPayment(year: number, month: number, receivedGross: number | null): Observable<PvUtilityPayment> {
-        return this.http.put<PvUtilityPayment>(`/api/pv-payments/${year}/${month}`, { receivedGross })
+    savePvPayments(year: number, payments: Array<Pick<PvUtilityPayment, 'month' | 'receivedGross'>>): Observable<PvUtilityPayment[]> {
+        return this.http.put<PvUtilityPayment[]>(`/api/pv-payments/${year}`, { payments })
             .pipe(catchError((error) => this.handleError(error)));
     }
 

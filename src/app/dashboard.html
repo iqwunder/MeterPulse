@@ -422,12 +422,16 @@
                     Steueranteil zu berechnen.</div>
                 }
                 <div class="pv-payment-summary" aria-label="Auszahlungen der Stadtwerke im ausgewählten Jahr">
-                    <div><span>Von Stadtwerken erhalten</span><strong>{{ pvPaymentSummary ?
-                            formatCurrency(pvPaymentSummary.receivedGross) : 'n. v.' }}</strong></div>
-                    <div><span>Differenz zur errechneten Bruttovergütung</span><strong>{{ pvPaymentSummary?.difference
-                            === null ||
-                            pvPaymentSummary?.difference === undefined ? 'n. v.' :
-                            formatCurrency(pvPaymentSummary.difference) }}</strong></div>
+                    <div><span>Von Stadtwerken erhalten</span><strong>{{
+                            formatOptionalCurrency(pvPaymentSummary?.receivedGross ?? null) }}</strong></div>
+                    <div><span>An Stadtwerke gezahlt</span><strong>{{ formatOptionalCurrency(pvPaymentSummary?.paidGross
+                            ?? null) }}</strong></div>
+                    <div><span>Umsatzsteuer erhalten</span><strong>{{
+                            formatOptionalCurrency(pvPaymentSummary?.vatReceived ?? null) }}</strong></div>
+                    <div><span>Umsatzsteuer gezahlt</span><strong>{{ formatOptionalCurrency(pvPaymentSummary?.vatPaid ??
+                            null) }}</strong></div>
+                    <div><span>Differenz zur errechneten Bruttovergütung</span><strong>{{
+                            formatOptionalCurrency(pvPaymentSummary?.difference ?? null) }}</strong></div>
                 </div>
                 @if (pvPaymentsError()) {
                 <div class="alert alert-error" role="alert">
@@ -449,7 +453,7 @@
                                 <th>Brutto</th>
                                 <th>Netto</th>
                                 <th>Enthaltene USt</th>
-                                <th>Von Stadtwerken erhalten</th>
+                                <th>Zahlung Stadtwerke (+ / −)</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -461,21 +465,22 @@
                                 <td>{{ row.net === null ? '–' : formatCurrency(row.net) }}</td>
                                 <td>{{ row.vat === null ? '–' : formatCurrency(row.vat) }}</td>
                                 <td class="pv-payment-cell">
-                                    <input [name]="'receivedGross-' + row.month" type="number" min="0" step="0.01"
-                                        [ngModel]="pvPaymentInputs[row.month + 1]"
+                                    <input [name]="'receivedGross-' + row.month" type="number" min="-9999999999.99"
+                                        step="0.01" [ngModel]="pvPaymentInputs[row.month + 1]"
                                         (ngModelChange)="pvPaymentInputs[row.month + 1] = $event"
-                                        aria-label="Bruttoauszahlung der Stadtwerke für {{ row.label }}"
-                                        [disabled]="pvPaymentsLoading() || pvPaymentSavingMonth() !== null" />
-                                    <button class="text-button" type="button" (click)="savePvPayment(row.month + 1)"
-                                        [disabled]="pvPaymentsLoading() || pvPaymentSavingMonth() !== null"
-                                        [attr.aria-label]="'Auszahlung für ' + row.label + ' speichern'">
-                                        {{ pvPaymentSavingMonth() === row.month + 1 ? '…' : 'Speichern' }}
-                                    </button>
+                                        aria-label="Bruttozahlung an oder von den Stadtwerken für {{ row.label }}"
+                                        [disabled]="pvPaymentsLoading() || pvPaymentsSaving()" />
                                 </td>
                             </tr>
                             }
                         </tbody>
                     </table>
+                </div>
+                <div class="pv-payment-actions">
+                    <button class="button button-primary" type="button" (click)="savePvPayments()"
+                        [disabled]="pvPaymentsLoading() || pvPaymentsSaving()">
+                        {{ pvPaymentsSaving() ? 'Wird gespeichert …' : 'Alle Monatszahlungen speichern' }}
+                    </button>
                 </div>
                 <p class="contract-footnote">USt-Anteil aus den Bruttoerlösen zurückgerechnet. Keine
                     Einkommensteuerberechnung.</p>

@@ -2167,6 +2167,12 @@ h2 {
     font-variant-numeric: tabular-nums;
 }
 
+.pv-payment-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 12px;
+}
+
 .pv-payment-cell button {
     padding: 4px 5px;
     white-space: nowrap;
