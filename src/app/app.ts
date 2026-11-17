@@ -347,6 +347,8 @@ export class App {
   protected contractEnd = '';
   protected monthlyFee: number | string | null = '';
   protected unitPrice: number | string | null = '';
+  protected heatingValue: number | string | null = '';
+  protected conditionNumber: number | string | null = '';
   protected monthlyAdvance: number | string | null = '';
 
   constructor() {
@@ -403,6 +405,11 @@ export class App {
     if (amounts.some((amount) => amount === '' || amount === null || !Number.isFinite(Number(amount)) || Number(amount) < 0)) {
       return null;
     }
+    if (this.contractUtility() === 'gas') {
+      const gasFactors = [this.heatingValue, this.conditionNumber];
+      if (gasFactors.some((factor) => factor === '' || factor === null
+        || !Number.isFinite(Number(factor)) || Number(factor) <= 0)) return null;
+    }
     if (this.contractEnd && (!/^\d{4}-\d{2}-\d{2}$/.test(this.contractEnd) || this.contractEnd < this.contractStart)) {
       return null;
     }
@@ -425,6 +432,8 @@ export class App {
         advancesByYearEnd: 0,
         measuredConsumption: 0,
         expectedConsumption: 0,
+        billableConsumption: 0,
+        billableUnit: this.contractUtility() === 'gas' ? 'kWh' : this.unitLabel(this.contractUtility()),
         expectedCosts: 0,
         balance: 0,
         activeMonths: 0,
@@ -461,9 +470,13 @@ export class App {
     const expectedConsumption = projectionAvailable
       ? measuredConsumption + (averagePerDay ?? 0) * forecastDays
       : null;
+    const conversionFactor = this.contractUtility() === 'gas'
+      ? Number(this.heatingValue) * Number(this.conditionNumber)
+      : 1;
+    const billableConsumption = expectedConsumption === null ? null : expectedConsumption * conversionFactor;
     const expectedCosts = expectedConsumption === null
       ? null
-      : activeMonths * monthlyFee + expectedConsumption * unitPrice;
+      : activeMonths * monthlyFee + (billableConsumption ?? 0) * unitPrice;
     const advancesByYearEnd = activeMonths * monthlyAdvance;
 
     return {
@@ -471,6 +484,8 @@ export class App {
       advancesByYearEnd,
       measuredConsumption,
       expectedConsumption,
+      billableConsumption,
+      billableUnit: this.contractUtility() === 'gas' ? 'kWh' : this.unitLabel(this.contractUtility()),
       expectedCosts,
       balance: expectedCosts === null ? null : advancesByYearEnd - expectedCosts,
       activeMonths,
@@ -544,6 +559,8 @@ export class App {
       contractStart: this.contractStart,
       monthlyFee: Number(this.monthlyFee),
       unitPrice: Number(this.unitPrice),
+      heatingValue: this.contractUtility() === 'gas' ? Number(this.heatingValue) : null,
+      conditionNumber: this.contractUtility() === 'gas' ? Number(this.conditionNumber) : null,
       monthlyAdvance: Number(this.monthlyAdvance),
       contractEnd: this.contractEnd || null,
     }).subscribe({
@@ -687,6 +704,10 @@ export class App {
     this.contractEnd = contract?.contractEnd?.slice(0, 10) ?? '';
     this.monthlyFee = contract ? Number(contract.monthlyFee) : '';
     this.unitPrice = contract ? Number(contract.unitPrice) : '';
+    this.heatingValue = contract?.heatingValue === null || contract?.heatingValue === undefined
+      ? '' : Number(contract.heatingValue);
+    this.conditionNumber = contract?.conditionNumber === null || contract?.conditionNumber === undefined
+      ? '' : Number(contract.conditionNumber);
     this.monthlyAdvance = contract ? Number(contract.monthlyAdvance) : '';
   }
 

@@ -528,12 +528,27 @@
                                         type="number" min="0" step="0.01" placeholder="0,00" /><span>€ /
                                         Monat</span></span>
                             </label>
-                            <label class="field-label">Preis pro {{ unitLabel(contractUtility()) }}
+                            <label class="field-label">Preis pro {{ contractUtility() === 'gas' ? 'kWh' :
+                                unitLabel(contractUtility()) }}
                                 <span class="input-with-unit"><input name="unitPrice" [(ngModel)]="unitPrice" required
                                         type="number" min="0" step="0.0001" placeholder="0,00" /><span>€ / {{
-                                        unitLabel(contractUtility()) }}</span></span>
+                                        contractUtility() === 'gas' ? 'kWh' : unitLabel(contractUtility())
+                                        }}</span></span>
                             </label>
                         </div>
+                        @if (contractUtility() === 'gas') {
+                        <div class="field-row gas-factor-row">
+                            <label class="field-label">Brennwert
+                                <span class="input-with-unit"><input name="heatingValue" [(ngModel)]="heatingValue"
+                                        required type="number" min="0.000001" step="0.000001" placeholder="11,000000" />
+                                    <span>kWh / m³</span></span>
+                            </label>
+                            <label class="field-label">Zustandszahl
+                                <input name="conditionNumber" [(ngModel)]="conditionNumber" required type="number"
+                                    min="0.000001" step="0.000001" placeholder="0,960000" />
+                            </label>
+                        </div>
+                        }
                         <div class="field-row">
                             <label class="field-label">Monatlicher Abschlag
                                 <span class="input-with-unit"><input name="monthlyAdvance" [(ngModel)]="monthlyAdvance"
@@ -597,6 +612,13 @@
                             <dd>{{ projection.expectedConsumption === null ? '–' :
                                 formatValue(projection.expectedConsumption) + ' ' + unitLabel(contractUtility()) }}</dd>
                         </div>
+                        @if (contractUtility() === 'gas') {
+                        <div>
+                            <dt>Abrechenbare Energiemenge erwartet</dt>
+                            <dd>{{ projection.billableConsumption === null ? '–' :
+                                formatValue(projection.billableConsumption) + ' ' + projection.billableUnit }}</dd>
+                        </div>
+                        }
                         <div class="contract-total">
                             <dt>Erwartete Gesamtkosten</dt>
                             <dd>{{ projection.expectedCosts === null ? '–' : formatCurrency(projection.expectedCosts) }}
@@ -610,7 +632,7 @@
                     <p class="contract-footnote">{{ projection.averagePerDay === null ? 'Kein weiterer Verbrauch nach
                         Vertragsende hochgerechnet.' : 'Hochrechnung mit ' + formatValue(projection.averagePerDay) + ' '
                         + unitLabel(contractUtility()) + '/Tag ab der letzten Messung.' }} Abschläge werden monatsweise
-                        gezählt.</p>
+                        gezählt. @if (contractUtility() === 'gas') { Gas: m³ × Brennwert × Zustandszahl = kWh. }</p>
                     }
                     } @else {
                     <div class="contract-summary-empty">Trage Vertragsbeginn und Preise ein, um die Jahreskosten zu

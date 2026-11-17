@@ -25,6 +25,8 @@ export interface UtilityContract {
     contractStart: string;
     monthlyFee: number | string;
     unitPrice: number | string;
+    heatingValue: number | string | null;
+    conditionNumber: number | string | null;
     monthlyAdvance: number | string;
     contractEnd: string | null;
 }

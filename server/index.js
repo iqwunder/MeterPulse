@@ -105,6 +105,8 @@ function validateContract(utility, input) {
         contractStart,
         monthlyFee: parseEnergyValue(input?.monthlyFee),
         unitPrice: parseEnergyValue(input?.unitPrice),
+        heatingValue: utility === 'gas' ? parseEnergyValue(input?.heatingValue) : null,
+        conditionNumber: utility === 'gas' ? parseEnergyValue(input?.conditionNumber) : null,
         monthlyAdvance: parseEnergyValue(input?.monthlyAdvance),
         contractEnd,
     };
@@ -112,6 +114,12 @@ function validateContract(utility, input) {
         !Number.isFinite(value[field]) || value[field] < 0 || value[field] > 999999999.9999,
     );
     if (invalidField) return { error: `${invalidField} muss eine nichtnegative Zahl sein.` };
+    if (utility === 'gas' && (!Number.isFinite(value.heatingValue) || value.heatingValue <= 0)) {
+        return { error: 'Der Brennwert muss für Gas eine positive Zahl sein.' };
+    }
+    if (utility === 'gas' && (!Number.isFinite(value.conditionNumber) || value.conditionNumber <= 0)) {
+        return { error: 'Die Zustandszahl muss für Gas eine positive Zahl sein.' };
+    }
 
     return { value };
 }
@@ -127,6 +135,8 @@ app.get('/api/contracts', asyncRoute(async (_req, res) => {
             DATE_FORMAT(contract_start, '%Y-%m-%d') AS contractStart,
             monthly_fee AS monthlyFee,
             unit_price AS unitPrice,
+            heating_value AS heatingValue,
+            condition_number AS conditionNumber,
             monthly_advance AS monthlyAdvance,
             DATE_FORMAT(contract_end, '%Y-%m-%d') AS contractEnd
         FROM utility_contracts
@@ -141,16 +151,18 @@ app.put('/api/contracts/:utility', asyncRoute(async (req, res) => {
     const contract = result.value;
     await pool.execute(`
         INSERT INTO utility_contracts
-            (utility, contract_start, monthly_fee, unit_price, monthly_advance, contract_end)
-        VALUES (?, ?, ?, ?, ?, ?)
+            (utility, contract_start, monthly_fee, unit_price, heating_value, condition_number, monthly_advance, contract_end)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
             contract_start = VALUES(contract_start),
             monthly_fee = VALUES(monthly_fee),
             unit_price = VALUES(unit_price),
+            heating_value = VALUES(heating_value),
+            condition_number = VALUES(condition_number),
             monthly_advance = VALUES(monthly_advance),
             contract_end = VALUES(contract_end)
     `, [contract.utility, contract.contractStart, contract.monthlyFee, contract.unitPrice,
-    contract.monthlyAdvance, contract.contractEnd]);
+    contract.heatingValue, contract.conditionNumber, contract.monthlyAdvance, contract.contractEnd]);
 
     res.json(contract);
 }));

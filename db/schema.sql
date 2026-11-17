@@ -37,6 +37,8 @@ CREATE TABLE IF NOT EXISTS utility_contracts (
   contract_start DATE NOT NULL,
   monthly_fee DECIMAL(12, 4) NOT NULL,
   unit_price DECIMAL(12, 6) NOT NULL,
+  heating_value DECIMAL(12, 6) NULL,
+  condition_number DECIMAL(12, 6) NULL,
   monthly_advance DECIMAL(12, 4) NOT NULL,
   contract_end DATE NULL,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -44,5 +46,8 @@ CREATE TABLE IF NOT EXISTS utility_contracts (
   CONSTRAINT chk_contract_monthly_fee_nonnegative CHECK (monthly_fee >= 0),
   CONSTRAINT chk_contract_unit_price_nonnegative CHECK (unit_price >= 0),
   CONSTRAINT chk_contract_monthly_advance_nonnegative CHECK (monthly_advance >= 0),
-  CONSTRAINT chk_contract_dates CHECK (contract_end IS NULL OR contract_end >= contract_start)
+  CONSTRAINT chk_contract_dates CHECK (contract_end IS NULL OR contract_end >= contract_start),
+  CONSTRAINT chk_gas_contract_factors CHECK (
+    utility <> 'gas' OR (heating_value > 0 AND condition_number > 0)
+  )
 ) ENGINE=InnoDB;
