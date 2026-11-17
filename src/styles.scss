@@ -2120,6 +2120,58 @@ h2 {
     font-size: 10px;
 }
 
+.pv-payment-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.pv-payment-summary>div {
+    display: flex;
+    min-width: 0;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 11px 13px;
+    background: #f5f8f5;
+}
+
+.pv-payment-summary span {
+    color: #78847b;
+    font-size: 9px;
+}
+
+.pv-payment-summary strong {
+    flex: 0 0 auto;
+    color: #2e4639;
+    font: 600 14px 'Space Grotesk', sans-serif;
+    font-variant-numeric: tabular-nums;
+}
+
+.pv-payment-cell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pv-payment-cell input {
+    width: 112px;
+    height: 30px;
+    padding: 0 7px;
+    border: 1px solid #dfe5df;
+    border-radius: 4px;
+    color: #34463c;
+    background: #fff;
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+}
+
+.pv-payment-cell button {
+    padding: 4px 5px;
+    white-space: nowrap;
+}
+
 .pv-revenue-table tbody th {
     color: #40564a;
     font-size: 10px;
@@ -2166,6 +2218,15 @@ h2 {
 
     .pv-tax-summary strong {
         font-size: 14px;
+    }
+
+    .pv-payment-summary {
+        grid-template-columns: 1fr;
+        gap: 6px;
+    }
+
+    .pv-payment-cell input {
+        width: 102px;
     }
 }
 

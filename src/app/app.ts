@@ -12,7 +12,15 @@ import {
   summarizeUsageSinceMeterReset,
   usageBetweenDates,
 } from './consumption';
-import { MeterApiService, PvFeedInContract, PvReading, Reading, Utility, UtilityContract } from './meter-api.service';
+import {
+  MeterApiService,
+  PvFeedInContract,
+  PvReading,
+  PvUtilityPayment,
+  Reading,
+  Utility,
+  UtilityContract,
+} from './meter-api.service';
 
 type Period = 'all' | 'year';
 const utilities: Utility[] = ['electricity', 'gas', 'water'];
@@ -30,19 +38,24 @@ export class App {
   protected readonly readings = signal<Reading[]>([]);
   protected readonly pvReadings = signal<PvReading[]>([]);
   protected readonly pvFeedInContract = signal<PvFeedInContract | null>(null);
+  protected readonly pvUtilityPayments = signal<PvUtilityPayment[]>([]);
   protected readonly contracts = signal<UtilityContract[]>([]);
   protected readonly loading = signal(true);
   protected readonly pvLoading = signal(true);
   protected readonly pvContractLoading = signal(true);
   protected readonly pvContractSaving = signal(false);
+  protected readonly pvPaymentsLoading = signal(true);
+  protected readonly pvPaymentSavingMonth = signal<number | null>(null);
   protected readonly contractLoading = signal(true);
   protected readonly apiError = signal('');
   protected readonly pvApiError = signal('');
   protected readonly pvContractError = signal('');
+  protected readonly pvPaymentsError = signal('');
   protected readonly contractError = signal('');
   protected readonly notice = signal('');
   protected readonly pvNotice = signal('');
   protected readonly pvContractNotice = signal('');
+  protected readonly pvPaymentsNotice = signal('');
   protected readonly contractNotice = signal('');
   protected readonly dialogOpen = signal(false);
   protected readonly helpOpen = signal(false);
@@ -58,6 +71,7 @@ export class App {
   protected readonly selectedAnnualUtility = signal<Utility>('electricity');
   protected readonly pvSelectedYear = signal<number | 'all'>(new Date().getFullYear());
   protected readonly pvRevenueYear = signal(new Date().getFullYear());
+  protected pvPaymentInputs: Record<number, number | string | null> = {};
   protected readonly currentYear = new Date().getFullYear();
   protected readonly selectedYear = signal(new Date().getFullYear());
   protected readonly years = computed(() => {
@@ -328,6 +342,25 @@ export class App {
       vat: totals.vat + (row.vat ?? 0),
     }), { feedInKwh: 0, gross: 0, net: 0, vat: 0 });
   }
+  protected get pvPaymentSummary() {
+    const enteredPayments = this.pvUtilityPayments().filter((payment) =>
+      payment.year === this.pvRevenueYear() && payment.receivedGross !== null,
+    );
+    if (!enteredPayments.length) return null;
+
+    const receivedGross = this.roundCurrency(enteredPayments.reduce(
+      (total, payment) => total + Number(payment.receivedGross),
+      0,
+    ));
+    const hasFeedInData = this.pvReadings().some((reading) =>
+      Number(reading.date.slice(0, 4)) === this.pvRevenueYear(),
+    );
+    const expectedGross = hasFeedInData ? this.pvRevenueTaxTotals?.gross ?? null : null;
+    return {
+      receivedGross,
+      difference: expectedGross === null ? null : this.roundCurrency(receivedGross - expectedGross),
+    };
+  }
   protected readonly pvMetrics = computed(() => {
     const readings = this.pvReadings();
     const currentYearReadings = readings.filter((reading) => Number(reading.date.slice(0, 4)) === this.currentYear);
@@ -408,6 +441,7 @@ export class App {
     this.loadReadings();
     this.loadPvReadings();
     this.loadPvContract();
+    this.loadPvPayments();
     this.loadContracts();
   }
 
@@ -465,6 +499,40 @@ export class App {
       error: (error: Error) => {
         this.pvContractSaving.set(false);
         this.pvContractError.set(error.message);
+      },
+    });
+  }
+
+  protected selectPvRevenueYear(year: number): void {
+    this.pvRevenueYear.set(year);
+    this.loadPvPayments();
+  }
+
+  protected savePvPayment(month: number): void {
+    if (this.pvPaymentSavingMonth() !== null) return;
+    const rawAmount = this.pvPaymentInputs[month];
+    const receivedGross = rawAmount === '' || rawAmount === null || rawAmount === undefined
+      ? null
+      : Number(rawAmount);
+    if (receivedGross !== null && (!Number.isFinite(receivedGross) || receivedGross < 0)) return;
+
+    const year = this.pvRevenueYear();
+    this.pvPaymentSavingMonth.set(month);
+    this.pvPaymentsError.set('');
+    this.pvPaymentsNotice.set('');
+    this.api.savePvPayment(year, month, receivedGross).subscribe({
+      next: (payment) => {
+        this.pvUtilityPayments.update((payments) => [
+          ...payments.filter((entry) => entry.year !== year || entry.month !== month),
+          payment,
+        ]);
+        this.pvPaymentInputs[month] = payment.receivedGross === null ? '' : Number(payment.receivedGross);
+        this.pvPaymentSavingMonth.set(null);
+        this.pvPaymentsNotice.set('Monatszahlung wurde gespeichert.');
+      },
+      error: (error: Error) => {
+        this.pvPaymentSavingMonth.set(null);
+        this.pvPaymentsError.set(error.message);
       },
     });
   }
@@ -803,6 +871,31 @@ export class App {
       error: (error: Error) => {
         this.pvContractError.set(error.message);
         this.pvContractLoading.set(false);
+      },
+    });
+  }
+
+  protected loadPvPayments(): void {
+    const year = this.pvRevenueYear();
+    this.pvPaymentsLoading.set(true);
+    this.api.getPvPayments(year).subscribe({
+      next: (payments) => {
+        this.pvUtilityPayments.update((existing) => [
+          ...existing.filter((payment) => payment.year !== year),
+          ...payments,
+        ]);
+        this.pvPaymentInputs = {};
+        for (let month = 1; month <= 12; month += 1) this.pvPaymentInputs[month] = '';
+        for (const payment of payments) {
+          this.pvPaymentInputs[payment.month] = payment.receivedGross === null
+            ? '' : Number(payment.receivedGross);
+        }
+        this.pvPaymentsError.set('');
+        this.pvPaymentsLoading.set(false);
+      },
+      error: (error: Error) => {
+        this.pvPaymentsError.set(error.message);
+        this.pvPaymentsLoading.set(false);
       },
     });
   }

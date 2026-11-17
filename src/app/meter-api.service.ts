@@ -25,6 +25,12 @@ export interface PvFeedInContract {
     vatRate: number | string;
 }
 
+export interface PvUtilityPayment {
+    year: number;
+    month: number;
+    receivedGross: number | string | null;
+}
+
 export interface UtilityContract {
     utility: Utility;
     contractStart: string;
@@ -79,6 +85,16 @@ export class MeterApiService {
 
     savePvContract(contract: PvFeedInContract): Observable<PvFeedInContract> {
         return this.http.put<PvFeedInContract>('/api/pv-contract', contract)
+            .pipe(catchError((error) => this.handleError(error)));
+    }
+
+    getPvPayments(year: number): Observable<PvUtilityPayment[]> {
+        return this.http.get<PvUtilityPayment[]>(`/api/pv-payments?year=${year}`)
+            .pipe(catchError((error) => this.handleError(error)));
+    }
+
+    savePvPayment(year: number, month: number, receivedGross: number | null): Observable<PvUtilityPayment> {
+        return this.http.put<PvUtilityPayment>(`/api/pv-payments/${year}/${month}`, { receivedGross })
             .pipe(catchError((error) => this.handleError(error)));
     }
 

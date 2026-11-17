@@ -100,6 +100,12 @@ Die Vertragstabelle wird bei einer neuen Datenbank durch [db/schema.sql](db/sche
 mariadb -h DB-HOST -u meterpulse -p meterpulse < db/migrations/006-create-pv-feed-in-contract.sql
 ```
 
+Die tatsächlichen Bruttoauszahlungen der Stadtwerke können pro Monat eingetragen werden. Die Jahresstatistik summiert gespeicherte Auszahlungen und vergleicht sie, sofern PV-Messwerte und Vertragspreis vorliegen, mit der errechneten Bruttovergütung. Für bestehende Datenbanken führe danach einmalig [db/migrations/007-create-pv-utility-payments.sql](db/migrations/007-create-pv-utility-payments.sql) aus:
+
+```bash
+mariadb -h DB-HOST -u meterpulse -p meterpulse < db/migrations/007-create-pv-utility-payments.sql
+```
+
 ## Vertragsdaten
 
 Unter **Verträge** können Vertragsbeginn, monatliche Grundgebühr, Arbeitspreis, Abschlag und optionales Vertragsende je Energieträger gepflegt werden. Für Gas werden zusätzlich Brennwert in kWh/m³ und Zustandszahl erfasst. Der Gaszähler bleibt in m³; für die Abrechnung wird die Menge mit `Brennwert × Zustandszahl` in kWh umgerechnet und mit dem Preis pro kWh bewertet. Bei Wasser werden Trink- und Abwasserkosten pro m³ auf denselben gemessenen Wasserverbrauch angewendet. Niederschlagswasser wird mit dem Jahrespreis pro m² und der versiegelten Fläche berechnet. Die Jahresbilanz zählt aktive Kalendermonate für Grundgebühr und Abschläge. Der erwartete Verbrauch kombiniert die bis zur letzten Ablesung gemessene Nutzung mit einer Hochrechnung des Tagesdurchschnitts für den Rest des Vertragsjahres. Ohne ausreichende Messhistorie wird keine Verbrauchsprognose angezeigt.

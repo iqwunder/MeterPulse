@@ -401,7 +401,7 @@
                     </div>
                     <label class="pv-year-toolbar">Jahr
                         <select aria-label="Jahr der PV-Einnahmen auswählen" [ngModel]="pvRevenueYear()"
-                            (ngModelChange)="pvRevenueYear.set(+$event)">
+                            (ngModelChange)="selectPvRevenueYear(+$event)">
                             @for (year of pvAvailableYears(); track year) {
                             <option [ngValue]="year">{{ year }}</option>
                             }
@@ -421,6 +421,25 @@
                 <div class="pv-revenue-empty">Speichere zuerst Bruttovergütung und Umsatzsteuersatz, um Einnahmen und
                     Steueranteil zu berechnen.</div>
                 }
+                <div class="pv-payment-summary" aria-label="Auszahlungen der Stadtwerke im ausgewählten Jahr">
+                    <div><span>Von Stadtwerken erhalten</span><strong>{{ pvPaymentSummary ?
+                            formatCurrency(pvPaymentSummary.receivedGross) : 'n. v.' }}</strong></div>
+                    <div><span>Differenz zur errechneten Bruttovergütung</span><strong>{{ pvPaymentSummary?.difference
+                            === null ||
+                            pvPaymentSummary?.difference === undefined ? 'n. v.' :
+                            formatCurrency(pvPaymentSummary.difference) }}</strong></div>
+                </div>
+                @if (pvPaymentsError()) {
+                <div class="alert alert-error" role="alert">
+                    <span class="alert-mark">!</span>
+                    <span><strong>Auszahlungen nicht verfügbar</strong><small>{{ pvPaymentsError() }}</small></span>
+                    <button type="button" class="text-button" (click)="loadPvPayments()">Erneut versuchen</button>
+                </div>
+                }
+                @if (pvPaymentsNotice()) {
+                <div class="alert alert-success" role="status"><span class="success-mark">✓</span>{{ pvPaymentsNotice()
+                    }}</div>
+                }
                 <div class="pv-table-wrap">
                     <table class="pv-table pv-revenue-table">
                         <thead>
@@ -430,6 +449,7 @@
                                 <th>Brutto</th>
                                 <th>Netto</th>
                                 <th>Enthaltene USt</th>
+                                <th>Von Stadtwerken erhalten</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -440,6 +460,18 @@
                                 <td>{{ row.gross === null ? '–' : formatCurrency(row.gross) }}</td>
                                 <td>{{ row.net === null ? '–' : formatCurrency(row.net) }}</td>
                                 <td>{{ row.vat === null ? '–' : formatCurrency(row.vat) }}</td>
+                                <td class="pv-payment-cell">
+                                    <input [name]="'receivedGross-' + row.month" type="number" min="0" step="0.01"
+                                        [ngModel]="pvPaymentInputs[row.month + 1]"
+                                        (ngModelChange)="pvPaymentInputs[row.month + 1] = $event"
+                                        aria-label="Bruttoauszahlung der Stadtwerke für {{ row.label }}"
+                                        [disabled]="pvPaymentsLoading() || pvPaymentSavingMonth() !== null" />
+                                    <button class="text-button" type="button" (click)="savePvPayment(row.month + 1)"
+                                        [disabled]="pvPaymentsLoading() || pvPaymentSavingMonth() !== null"
+                                        [attr.aria-label]="'Auszahlung für ' + row.label + ' speichern'">
+                                        {{ pvPaymentSavingMonth() === row.month + 1 ? '…' : 'Speichern' }}
+                                    </button>
+                                </td>
                             </tr>
                             }
                         </tbody>

@@ -154,6 +154,26 @@ function validatePvFeedInContract(input) {
     return { value };
 }
 
+function validatePvUtilityPayment(yearInput, monthInput, input) {
+    const year = Number(yearInput);
+    const month = Number(monthInput);
+    if (!/^\d{4}$/.test(String(yearInput)) || year < 1900 || year > 9999) {
+        return { error: 'Das Jahr muss vierstellig zwischen 1900 und 9999 liegen.' };
+    }
+    if (!/^\d{1,2}$/.test(String(monthInput)) || month < 1 || month > 12) {
+        return { error: 'Der Monat muss zwischen 1 und 12 liegen.' };
+    }
+
+    const rawAmount = input?.receivedGross;
+    const receivedGross = rawAmount === null || rawAmount === '' || rawAmount === undefined
+        ? null
+        : parseEnergyValue(rawAmount);
+    if (receivedGross !== null && (!Number.isFinite(receivedGross) || receivedGross < 0 || receivedGross > 9999999999.99)) {
+        return { error: 'Die erhaltene Auszahlung muss eine nichtnegative Zahl sein.' };
+    }
+    return { value: { year, month, receivedGross } };
+}
+
 app.get('/api/health', asyncRoute(async (_req, res) => {
     await pool.query('SELECT 1');
     res.json({ status: 'ok' });
@@ -318,6 +338,34 @@ app.put('/api/pv-contract', asyncRoute(async (req, res) => {
             vat_rate = VALUES(vat_rate)
     `, [contract.grossPricePerKwh, contract.vatRate]);
     res.json(contract);
+}));
+
+app.get('/api/pv-payments', asyncRoute(async (req, res) => {
+    const year = String(req.query.year ?? '');
+    if (!/^\d{4}$/.test(year) || Number(year) < 1900 || Number(year) > 9999) {
+        return res.status(400).json({ error: 'Das Jahr muss vierstellig zwischen 1900 und 9999 liegen.' });
+    }
+
+    const [rows] = await pool.query(`
+        SELECT payment_year AS year, payment_month AS month, received_gross AS receivedGross
+        FROM pv_utility_payments
+        WHERE payment_year = ?
+        ORDER BY payment_month
+    `, [Number(year)]);
+    res.json(rows);
+}));
+
+app.put('/api/pv-payments/:year/:month', asyncRoute(async (req, res) => {
+    const result = validatePvUtilityPayment(req.params.year, req.params.month, req.body);
+    if (result.error) return res.status(400).json({ error: result.error });
+
+    const payment = result.value;
+    await pool.execute(`
+        INSERT INTO pv_utility_payments (payment_year, payment_month, received_gross)
+        VALUES (?, ?, ?)
+        ON DUPLICATE KEY UPDATE received_gross = VALUES(received_gross)
+    `, [payment.year, payment.month, payment.receivedGross]);
+    res.json(payment);
 }));
 
 app.post('/api/pv-readings/import', upload.single('file'), asyncRoute(async (req, res) => {
