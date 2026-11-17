@@ -150,7 +150,7 @@ app.put('/api/contracts/:utility', asyncRoute(async (req, res) => {
             monthly_advance = VALUES(monthly_advance),
             contract_end = VALUES(contract_end)
     `, [contract.utility, contract.contractStart, contract.monthlyFee, contract.unitPrice,
-        contract.monthlyAdvance, contract.contractEnd]);
+    contract.monthlyAdvance, contract.contractEnd]);
 
     res.json(contract);
 }));
