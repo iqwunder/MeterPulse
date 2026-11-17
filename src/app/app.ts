@@ -10,8 +10,9 @@ import {
   summarizeUsage,
   summarizeUsageSinceFirstReading,
   summarizeUsageSinceMeterReset,
+  usageBetweenDates,
 } from './consumption';
-import { MeterApiService, PvReading, Reading, Utility } from './meter-api.service';
+import { MeterApiService, PvReading, Reading, Utility, UtilityContract } from './meter-api.service';
 
 type Period = 'all' | 'year';
 const utilities: Utility[] = ['electricity', 'gas', 'water'];
@@ -28,17 +29,24 @@ export class App {
   protected readonly utilities = utilities;
   protected readonly readings = signal<Reading[]>([]);
   protected readonly pvReadings = signal<PvReading[]>([]);
+  protected readonly contracts = signal<UtilityContract[]>([]);
   protected readonly loading = signal(true);
   protected readonly pvLoading = signal(true);
+  protected readonly contractLoading = signal(true);
   protected readonly apiError = signal('');
   protected readonly pvApiError = signal('');
+  protected readonly contractError = signal('');
   protected readonly notice = signal('');
   protected readonly pvNotice = signal('');
+  protected readonly contractNotice = signal('');
   protected readonly dialogOpen = signal(false);
   protected readonly helpOpen = signal(false);
   protected readonly readingsOpen = signal(false);
   protected readonly pvOpen = signal(false);
+  protected readonly contractOpen = signal(false);
   protected readonly pvImporting = signal(false);
+  protected readonly contractSaving = signal(false);
+  protected readonly contractUtility = signal<Utility>('electricity');
   protected readonly readingUtility = signal<Utility>('electricity');
   protected readonly period = signal<Period>('all');
   protected readonly selectedUtility = signal<Utility>('electricity');
@@ -335,17 +343,24 @@ export class App {
   protected newValue: number | string | null = '';
   protected newDate = this.today();
   protected saving = false;
+  protected contractStart = this.today();
+  protected contractEnd = '';
+  protected monthlyFee: number | string | null = '';
+  protected unitPrice: number | string | null = '';
+  protected monthlyAdvance: number | string | null = '';
 
   constructor() {
     this.syncPageFromHash();
     this.loadReadings();
     this.loadPvReadings();
+    this.loadContracts();
   }
 
   @HostListener('window:hashchange')
   protected syncPageFromHash(): void {
     this.readingsOpen.set(window.location.hash === '#readings');
     this.pvOpen.set(window.location.hash === '#pv');
+    this.contractOpen.set(window.location.hash === '#contracts');
     this.helpOpen.set(window.location.hash === '#help');
   }
 
@@ -365,6 +380,14 @@ export class App {
     return new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }).format(Number(value));
   }
 
+  protected formatCurrency(value: number): string {
+    return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value);
+  }
+
+  protected contractFeeTotal(months: number): number {
+    return months * Number(this.monthlyFee || 0);
+  }
+
   protected formatDailyValue(value: number | null): string {
     return value === null ? '–' : this.formatValue(value);
   }
@@ -372,6 +395,90 @@ export class App {
   protected formatDate(value: string): string {
     return new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: 'short', year: 'numeric' })
       .format(new Date(`${value.slice(0, 10)}T12:00:00`));
+  }
+
+  protected get contractProjection() {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(this.contractStart)) return null;
+    const amounts = [this.monthlyFee, this.unitPrice, this.monthlyAdvance];
+    if (amounts.some((amount) => amount === '' || amount === null || !Number.isFinite(Number(amount)) || Number(amount) < 0)) {
+      return null;
+    }
+    if (this.contractEnd && (!/^\d{4}-\d{2}-\d{2}$/.test(this.contractEnd) || this.contractEnd < this.contractStart)) {
+      return null;
+    }
+
+    const yearStart = `${this.currentYear}-01-01`;
+    const yearEnd = `${this.currentYear}-12-31`;
+    const activeStart = this.contractStart > yearStart ? this.contractStart : yearStart;
+    const contractEnd = this.contractEnd || yearEnd;
+    const activeEnd = contractEnd < yearEnd ? contractEnd : yearEnd;
+    const monthlyFee = Number(this.monthlyFee);
+    const unitPrice = Number(this.unitPrice);
+    const monthlyAdvance = Number(this.monthlyAdvance);
+    const activeMonths = this.countCalendarMonths(activeStart, activeEnd);
+    const paidEnd = this.today() < activeEnd ? this.today() : activeEnd;
+    const paidMonths = this.countCalendarMonths(activeStart, paidEnd);
+
+    if (activeEnd < activeStart) {
+      return {
+        paidToDate: 0,
+        advancesByYearEnd: 0,
+        measuredConsumption: 0,
+        expectedConsumption: 0,
+        expectedCosts: 0,
+        balance: 0,
+        activeMonths: 0,
+        paidMonths: 0,
+        measuredThrough: null,
+        averagePerDay: null,
+        projectionAvailable: true,
+      };
+    }
+
+    const lastReadingDate = this.readings()
+      .filter((reading) => reading.utility === this.contractUtility()
+        && reading.recordedAt.slice(0, 10) >= activeStart
+        && reading.recordedAt.slice(0, 10) <= this.today()
+        && reading.recordedAt.slice(0, 10) <= activeEnd)
+      .map((reading) => reading.recordedAt.slice(0, 10))
+      .sort()
+      .at(-1) ?? null;
+    const yearEndExclusive = this.addCalendarDays(activeEnd, 1);
+    const measuredEndExclusive = lastReadingDate ?? activeStart;
+    const actualEndExclusive = measuredEndExclusive < yearEndExclusive ? measuredEndExclusive : yearEndExclusive;
+    const intervals = this.usageIntervals();
+    const measuredConsumption = usageBetweenDates(intervals, this.contractUtility(), activeStart, actualEndExclusive);
+    const forecastStart = actualEndExclusive > activeStart ? actualEndExclusive : activeStart;
+    const forecastDays = Math.max(0, (Date.parse(`${yearEndExclusive}T00:00:00Z`)
+      - Date.parse(`${forecastStart}T00:00:00Z`)) / 86_400_000);
+    const readingsToDate = this.readings().filter((reading) => reading.recordedAt.slice(0, 10) <= this.today());
+    const averagePerDay = summarizeUsageSinceMeterReset(
+      readingsToDate,
+      createUsageIntervals(readingsToDate),
+      this.contractUtility(),
+    ).perDay;
+    const projectionAvailable = averagePerDay !== null || forecastDays === 0;
+    const expectedConsumption = projectionAvailable
+      ? measuredConsumption + (averagePerDay ?? 0) * forecastDays
+      : null;
+    const expectedCosts = expectedConsumption === null
+      ? null
+      : activeMonths * monthlyFee + expectedConsumption * unitPrice;
+    const advancesByYearEnd = activeMonths * monthlyAdvance;
+
+    return {
+      paidToDate: paidMonths * monthlyAdvance,
+      advancesByYearEnd,
+      measuredConsumption,
+      expectedConsumption,
+      expectedCosts,
+      balance: expectedCosts === null ? null : advancesByYearEnd - expectedCosts,
+      activeMonths,
+      paidMonths,
+      measuredThrough: lastReadingDate,
+      averagePerDay,
+      projectionAvailable,
+    };
   }
 
   protected openDialog(): void {
@@ -383,6 +490,7 @@ export class App {
   protected showHelp(): void {
     this.readingsOpen.set(false);
     this.pvOpen.set(false);
+    this.contractOpen.set(false);
     this.helpOpen.set(true);
     if (window.location.hash !== '#help') window.location.hash = '#help';
   }
@@ -390,6 +498,7 @@ export class App {
   protected showDashboard(): void {
     this.readingsOpen.set(false);
     this.pvOpen.set(false);
+    this.contractOpen.set(false);
     this.helpOpen.set(false);
     if (window.location.hash !== '#overview') window.location.hash = '#overview';
   }
@@ -397,6 +506,7 @@ export class App {
   protected showReadings(): void {
     this.helpOpen.set(false);
     this.pvOpen.set(false);
+    this.contractOpen.set(false);
     this.readingsOpen.set(true);
     if (window.location.hash !== '#readings') window.location.hash = '#readings';
   }
@@ -404,8 +514,52 @@ export class App {
   protected showPv(): void {
     this.helpOpen.set(false);
     this.readingsOpen.set(false);
+    this.contractOpen.set(false);
     this.pvOpen.set(true);
     if (window.location.hash !== '#pv') window.location.hash = '#pv';
+  }
+
+  protected showContracts(): void {
+    this.helpOpen.set(false);
+    this.readingsOpen.set(false);
+    this.pvOpen.set(false);
+    this.contractOpen.set(true);
+    if (window.location.hash !== '#contracts') window.location.hash = '#contracts';
+  }
+
+  protected selectContractUtility(utility: Utility): void {
+    this.contractUtility.set(utility);
+    this.syncContractForm();
+  }
+
+  protected saveContract(event: SubmitEvent): void {
+    event.preventDefault();
+    if (this.contractSaving() || !this.contractProjection) return;
+
+    this.contractSaving.set(true);
+    this.contractError.set('');
+    this.contractNotice.set('');
+    this.api.saveContract({
+      utility: this.contractUtility(),
+      contractStart: this.contractStart,
+      monthlyFee: Number(this.monthlyFee),
+      unitPrice: Number(this.unitPrice),
+      monthlyAdvance: Number(this.monthlyAdvance),
+      contractEnd: this.contractEnd || null,
+    }).subscribe({
+      next: (contract) => {
+        this.contracts.update((contracts) => [
+          ...contracts.filter((entry) => entry.utility !== contract.utility),
+          contract,
+        ]);
+        this.contractSaving.set(false);
+        this.contractNotice.set(`${this.utilityLabel(contract.utility)}-Vertrag wurde gespeichert.`);
+      },
+      error: (error: Error) => {
+        this.contractSaving.set(false);
+        this.contractError.set(error.message);
+      },
+    });
   }
 
   protected closeDialog(): void {
@@ -509,6 +663,44 @@ export class App {
         this.pvLoading.set(false);
       },
     });
+  }
+
+  protected loadContracts(): void {
+    this.contractLoading.set(true);
+    this.api.getContracts().subscribe({
+      next: (contracts) => {
+        this.contracts.set(contracts);
+        this.contractError.set('');
+        this.syncContractForm();
+        this.contractLoading.set(false);
+      },
+      error: (error: Error) => {
+        this.contractError.set(error.message);
+        this.contractLoading.set(false);
+      },
+    });
+  }
+
+  private syncContractForm(): void {
+    const contract = this.contracts().find((entry) => entry.utility === this.contractUtility());
+    this.contractStart = contract?.contractStart.slice(0, 10) ?? this.today();
+    this.contractEnd = contract?.contractEnd?.slice(0, 10) ?? '';
+    this.monthlyFee = contract ? Number(contract.monthlyFee) : '';
+    this.unitPrice = contract ? Number(contract.unitPrice) : '';
+    this.monthlyAdvance = contract ? Number(contract.monthlyAdvance) : '';
+  }
+
+  private countCalendarMonths(start: string, end: string): number {
+    if (end < start) return 0;
+    const startDate = new Date(`${start}T00:00:00Z`);
+    const endDate = new Date(`${end}T00:00:00Z`);
+    return (endDate.getUTCFullYear() - startDate.getUTCFullYear()) * 12
+      + endDate.getUTCMonth() - startDate.getUTCMonth() + 1;
+  }
+
+  private addCalendarDays(date: string, days: number): string {
+    const timestamp = Date.parse(`${date}T00:00:00Z`) + days * 86_400_000;
+    return new Date(timestamp).toISOString().slice(0, 10);
   }
 
   private today(): string {

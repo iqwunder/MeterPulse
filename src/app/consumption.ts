@@ -107,6 +107,29 @@ export function summarizeUsage(
     return { consumption, days, perDay: days > 0 ? consumption / days : null };
 }
 
+export function usageBetweenDates(
+    intervals: UsageInterval[],
+    utility: Utility,
+    startDate: string,
+    endDateExclusive: string,
+): number {
+    const rangeStart = Date.parse(`${startDate}T00:00:00Z`);
+    const rangeEnd = Date.parse(`${endDateExclusive}T00:00:00Z`);
+    if (!Number.isFinite(rangeStart) || !Number.isFinite(rangeEnd) || rangeEnd <= rangeStart) return 0;
+
+    return intervals.reduce((total, interval) => {
+        if (interval.utility !== utility) return total;
+        const intervalStart = Date.parse(`${interval.from}T00:00:00Z`);
+        const intervalEnd = Date.parse(`${interval.to}T00:00:00Z`);
+        const overlapStart = Math.max(rangeStart, intervalStart);
+        const overlapEnd = Math.min(rangeEnd, intervalEnd);
+        if (overlapEnd <= overlapStart) return total;
+
+        const overlapDays = (overlapEnd - overlapStart) / millisecondsPerDay;
+        return total + interval.consumption * overlapDays / interval.days;
+    }, 0);
+}
+
 export function summarizeUsageSinceFirstReading(
     readings: Reading[],
     intervals: UsageInterval[],

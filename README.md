@@ -90,6 +90,16 @@ mariadb -h DB-HOST -u meterpulse -p meterpulse < db/migrations/002-create-pv-dai
 
 Der Import ist vollständig oder gar nicht: Ungültige Zeilen oder doppelte Datumswerte in derselben Datei werden abgelehnt.
 
+## Vertragsdaten
+
+Unter **Verträge** können Vertragsbeginn, monatliche Grundgebühr, Arbeitspreis, Abschlag und optionales Vertragsende je Energieträger gepflegt werden. Die Jahresbilanz zählt aktive Kalendermonate für Grundgebühr und Abschläge. Der erwartete Verbrauch kombiniert die bis zur letzten Ablesung gemessene Nutzung mit einer Hochrechnung des Tagesdurchschnitts für den Rest des Vertragsjahres. Ohne ausreichende Messhistorie wird keine Verbrauchsprognose angezeigt.
+
+Die Tabelle wird bei einer neuen Datenbank durch [db/schema.sql](db/schema.sql) angelegt. Für eine bestehende Datenbank führe einmalig [db/migrations/003-create-utility-contracts.sql](db/migrations/003-create-utility-contracts.sql) aus:
+
+```bash
+mariadb -h DB-HOST -u meterpulse -p meterpulse < db/migrations/003-create-utility-contracts.sql
+```
+
 ## Produktionsstart
 
 Mit vorhandener `.env` und laufender Datenbank startet der Build samt Webserver und API gemeinsam:

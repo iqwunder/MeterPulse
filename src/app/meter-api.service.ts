@@ -20,6 +20,15 @@ export interface PvReading {
     gridImport: number | string;
 }
 
+export interface UtilityContract {
+    utility: Utility;
+    contractStart: string;
+    monthlyFee: number | string;
+    unitPrice: number | string;
+    monthlyAdvance: number | string;
+    contractEnd: string | null;
+}
+
 export type NewReading = Omit<Reading, 'id'>;
 
 @Injectable({ providedIn: 'root' })
@@ -50,6 +59,15 @@ export class MeterApiService {
         const formData = new FormData();
         formData.append('file', file);
         return this.http.post<{ imported: number }>('/api/pv-readings/import', formData)
+            .pipe(catchError((error) => this.handleError(error)));
+    }
+
+    getContracts(): Observable<UtilityContract[]> {
+        return this.http.get<UtilityContract[]>('/api/contracts').pipe(catchError((error) => this.handleError(error)));
+    }
+
+    saveContract(contract: UtilityContract): Observable<UtilityContract> {
+        return this.http.put<UtilityContract>(`/api/contracts/${contract.utility}`, contract)
             .pipe(catchError((error) => this.handleError(error)));
     }
 

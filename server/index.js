@@ -91,9 +91,68 @@ function validatePvReading(input) {
     return { value };
 }
 
+function validateContract(utility, input) {
+    if (!utilities.has(utility)) return { error: 'Unbekannter Energieträger.' };
+
+    const contractStart = input?.contractStart;
+    const contractEnd = input?.contractEnd || null;
+    if (!validDate(contractStart)) return { error: 'Der Vertragsstart muss ein gültiges Datum sein.' };
+    if (contractEnd && !validDate(contractEnd)) return { error: 'Das Vertragsende muss ein gültiges Datum sein.' };
+    if (contractEnd && contractEnd < contractStart) return { error: 'Das Vertragsende darf nicht vor dem Vertragsstart liegen.' };
+
+    const value = {
+        utility,
+        contractStart,
+        monthlyFee: parseEnergyValue(input?.monthlyFee),
+        unitPrice: parseEnergyValue(input?.unitPrice),
+        monthlyAdvance: parseEnergyValue(input?.monthlyAdvance),
+        contractEnd,
+    };
+    const invalidField = ['monthlyFee', 'unitPrice', 'monthlyAdvance'].find((field) =>
+        !Number.isFinite(value[field]) || value[field] < 0 || value[field] > 999999999.9999,
+    );
+    if (invalidField) return { error: `${invalidField} muss eine nichtnegative Zahl sein.` };
+
+    return { value };
+}
+
 app.get('/api/health', asyncRoute(async (_req, res) => {
     await pool.query('SELECT 1');
     res.json({ status: 'ok' });
+}));
+
+app.get('/api/contracts', asyncRoute(async (_req, res) => {
+    const [rows] = await pool.query(`
+        SELECT utility,
+            DATE_FORMAT(contract_start, '%Y-%m-%d') AS contractStart,
+            monthly_fee AS monthlyFee,
+            unit_price AS unitPrice,
+            monthly_advance AS monthlyAdvance,
+            DATE_FORMAT(contract_end, '%Y-%m-%d') AS contractEnd
+        FROM utility_contracts
+    `);
+    res.json(rows);
+}));
+
+app.put('/api/contracts/:utility', asyncRoute(async (req, res) => {
+    const result = validateContract(req.params.utility, req.body);
+    if (result.error) return res.status(400).json({ error: result.error });
+
+    const contract = result.value;
+    await pool.execute(`
+        INSERT INTO utility_contracts
+            (utility, contract_start, monthly_fee, unit_price, monthly_advance, contract_end)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+            contract_start = VALUES(contract_start),
+            monthly_fee = VALUES(monthly_fee),
+            unit_price = VALUES(unit_price),
+            monthly_advance = VALUES(monthly_advance),
+            contract_end = VALUES(contract_end)
+    `, [contract.utility, contract.contractStart, contract.monthlyFee, contract.unitPrice,
+        contract.monthlyAdvance, contract.contractEnd]);
+
+    res.json(contract);
 }));
 
 app.get('/api/readings', asyncRoute(async (req, res) => {
