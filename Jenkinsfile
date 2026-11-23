@@ -13,7 +13,6 @@ pipeline {
     parameters {
         string(name: 'APP_NAME', defaultValue: 'meterpulse', description: 'Name der Anwendung')
         booleanParam(name: 'DEPLOY', defaultValue: false, description: 'Soll die App deployed werden')
-        string(name: 'SERVICE_API_URL', defaultValue: '', description: 'Interne Basis-URL des gemeinsamen API-Service')
     }
 
     stages {
