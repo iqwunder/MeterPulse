@@ -2034,14 +2034,9 @@ h2 {
     }
 }
 
-.pv-contract-panel,
 .pv-revenue-panel {
     margin-top: 14px;
     padding: 18px 21px 14px;
-}
-
-.pv-contract-panel .panel-heading {
-    margin-bottom: 14px;
 }
 
 .pv-contract-form {
@@ -2058,10 +2053,6 @@ h2 {
 
 .pv-contract-form .input-with-unit input {
     padding-right: 65px;
-}
-
-.pv-contract-panel .contract-footnote {
-    margin-top: 12px;
 }
 
 .pv-revenue-panel .panel-heading {
@@ -2201,7 +2192,6 @@ h2 {
 
 @media (max-width: 650px) {
 
-    .pv-contract-panel,
     .pv-revenue-panel {
         padding: 15px 13px 10px;
     }

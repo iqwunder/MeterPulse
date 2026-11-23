@@ -323,8 +323,9 @@
                         <input type="file" accept=".csv,text/csv" (change)="importPvCsv($event)"
                             [disabled]="pvImporting()" />
                     </label>
-                    <button class="button button-primary" type="button" (click)="loadPvReadings()"
-                        [disabled]="pvLoading()">Aktualisieren</button>
+                    <button class="button button-primary" type="button" (click)="openPvReadingDialog()">
+                        <span class="plus-icon">+</span>Messdaten pflegen
+                    </button>
                 </div>
             </section>
 
@@ -348,48 +349,6 @@
                     <strong>{{ formatValue(metric.currentYear) }}<small>kWh</small></strong>
                     <div class="pv-metric-total">Gesamt {{ formatValue(metric.total) }} kWh</div>
                 </article>
-                }
-            </section>
-
-            <section class="panel pv-contract-panel">
-                <div class="panel-heading">
-                    <div>
-                        <div class="section-kicker">EINSPEISEVERTRAG</div>
-                        <h2>Verkaufsvergütung</h2>
-                    </div>
-                </div>
-                @if (pvContractError()) {
-                <div class="alert alert-error" role="alert">
-                    <span class="alert-mark">!</span>
-                    <span><strong>PV-Vertrag nicht verfügbar</strong><small>{{ pvContractError() }}</small></span>
-                    <button type="button" class="text-button" (click)="loadPvContract()">Erneut versuchen</button>
-                </div>
-                }
-                @if (pvContractNotice()) {
-                <div class="alert alert-success" role="status"><span class="success-mark">✓</span>{{ pvContractNotice()
-                    }}</div>
-                }
-                @if (pvContractLoading()) {
-                <div class="contract-loading">Verkaufsvertrag wird geladen …</div>
-                } @else {
-                <form class="pv-contract-form" (submit)="savePvContract($event)">
-                    <label class="field-label">Einnahme pro kWh · brutto
-                        <span class="input-with-unit"><input name="pvGrossPricePerKwh" [(ngModel)]="pvGrossPricePerKwh"
-                                required type="number" min="0" step="0.000001" placeholder="0,00" /><span>€ /
-                                kWh</span></span>
-                    </label>
-                    <label class="field-label">Umsatzsteuersatz
-                        <span class="input-with-unit"><input name="pvVatRate" [(ngModel)]="pvVatRate" required
-                                type="number" min="0" max="100" step="0.01"
-                                placeholder="z. B. 19" /><span>%</span></span>
-                    </label>
-                    <button class="button button-primary" type="submit"
-                        [disabled]="pvContractSaving() || pvGrossPricePerKwh === '' || pvVatRate === ''">
-                        {{ pvContractSaving() ? 'Wird gespeichert …' : 'Vertrag speichern' }}
-                    </button>
-                </form>
-                <p class="contract-footnote">Der Steuersatz wird für die rechnerische Aufteilung des Bruttopreises
-                    verwendet. Bitte passend zum Vertrag einstellen.</p>
                 }
             </section>
 
@@ -498,6 +457,7 @@
                                 <th>Verbraucht</th>
                                 <th>Einspeisung</th>
                                 <th>Netzbezug</th>
+                                <th>Aktion</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -594,13 +554,15 @@
                                 <td>{{ formatValue(reading.consumed) }} kWh</td>
                                 <td>{{ formatValue(reading.feedIn) }} kWh</td>
                                 <td>{{ formatValue(reading.gridImport) }} kWh</td>
+                                <td><button class="text-button" type="button" (click)="openPvReadingDialog(reading)"
+                                        [attr.aria-label]="'PV-Tageswert vom ' + formatDate(reading.date) + ' bearbeiten'">Bearbeiten</button></td>
                             </tr>
                             }
                         </tbody>
                     </table>
                 </div>
                 } @else {
-                <div class="pv-table-empty">Nach dem Import erscheinen hier die neuesten 30 Tageswerte.</div>
+                <div class="pv-table-empty">Nach dem Import oder der manuellen Eingabe erscheinen hier die neuesten 30 Tageswerte.</div>
                 }
             </section>
 
@@ -633,11 +595,11 @@
             }
 
             <div class="contract-utility-tabs" role="group" aria-label="Vertrag auswählen">
-                @for (utility of utilities; track utility) {
+                @for (utility of contractUtilities; track utility) {
                 <button type="button"
                     [class]="'utility-tab ' + utility + (contractUtility() === utility ? ' selected' : '')"
                     (click)="selectContractUtility(utility)">
-                    <span class="tab-dot"></span>{{ utilityLabel(utility) }}
+                    <span class="tab-dot"></span>{{ contractUtilityLabel(utility) }}
                 </button>
                 }
             </div>
@@ -646,11 +608,44 @@
                 <article class="panel contract-form-panel">
                     <div class="panel-heading">
                         <div>
-                            <div class="section-kicker">{{ utilityLabel(contractUtility()) }} · VERTRAG</div>
-                            <h2>Vertragsdaten</h2>
+                            <div class="section-kicker">{{ contractUtilityLabel() }} · VERTRAG</div>
+                            <h2>{{ contractUtility() === 'pv' ? 'Einspeisevertrag' : 'Vertragsdaten' }}</h2>
                         </div>
                     </div>
-                    @if (contractLoading()) {
+                    @if (contractUtility() === 'pv') {
+                    @if (pvContractError()) {
+                    <div class="alert alert-error" role="alert">
+                        <span class="alert-mark">!</span>
+                        <span><strong>PV-Vertrag nicht verfügbar</strong><small>{{ pvContractError() }}</small></span>
+                        <button type="button" class="text-button" (click)="loadPvContract()">Erneut versuchen</button>
+                    </div>
+                    }
+                    @if (pvContractNotice()) {
+                    <div class="alert alert-success" role="status"><span class="success-mark">✓</span>{{ pvContractNotice() }}</div>
+                    }
+                    @if (pvContractLoading()) {
+                    <div class="contract-loading">Einspeisevertrag wird geladen …</div>
+                    } @else {
+                    <form class="contract-form pv-contract-form" (submit)="savePvContract($event)">
+                        <label class="field-label">Einnahme pro kWh · brutto
+                            <span class="input-with-unit"><input name="pvGrossPricePerKwh" [(ngModel)]="pvGrossPricePerKwh"
+                                    required type="number" min="0" step="0.000001" placeholder="0,00" /><span>€ / kWh</span></span>
+                        </label>
+                        <label class="field-label">Umsatzsteuersatz
+                            <span class="input-with-unit"><input name="pvVatRate" [(ngModel)]="pvVatRate" required
+                                    type="number" min="0" max="100" step="0.01" placeholder="z. B. 19" /><span>%</span></span>
+                        </label>
+                        <div class="contract-form-actions">
+                            <span>Vergütung für eingespeiste Energie</span>
+                            <button class="button button-primary" type="submit"
+                                [disabled]="pvContractSaving() || pvGrossPricePerKwh === '' || pvVatRate === ''">
+                                {{ pvContractSaving() ? 'Wird gespeichert …' : 'Vertrag speichern' }}
+                            </button>
+                        </div>
+                    </form>
+                    <p class="contract-footnote">Der Steuersatz wird für die rechnerische Aufteilung des Bruttopreises verwendet. Bitte passend zum Vertrag einstellen.</p>
+                    }
+                    } @else if (contractLoading()) {
                     <div class="contract-loading">Vertragsdaten werden geladen …</div>
                     } @else {
                     <form class="contract-form" (submit)="saveContract($event)">
@@ -734,7 +729,16 @@
                             <h2>Erwartete Kosten</h2>
                         </div>
                     </div>
-                    @if (contractProjection; as projection) {
+                    @if (contractUtility() === 'pv') {
+                    <div class="contract-summary-empty">
+                        @if (pvFeedInContract(); as contract) {
+                        Die Einspeisevergütung beträgt {{ formatValue(contract.grossPricePerKwh) }} € pro kWh brutto.
+                        Der Umsatzsteuersatz ist auf {{ formatValue(contract.vatRate) }} % eingestellt.
+                        } @else {
+                        Trage die vereinbarte Bruttovergütung und den Umsatzsteuersatz ein, um die Einspeiseerlöse auf der PV-Seite zu berechnen.
+                        }
+                    </div>
+                    } @else if (contractProjection; as projection) {
                     <div class="contract-balance"
                         [class.positive]="projection.balance !== null && projection.balance >= 0"
                         [class.negative]="projection.balance !== null && projection.balance < 0">
@@ -933,6 +937,57 @@ water;12.6;2025-01-31</code></pre>
             <div class="dialog-actions"><button class="button button-secondary" type="button"
                     (click)="closeDialog()">Abbrechen</button><button class="button button-primary" type="submit"
                     [disabled]="saving">{{ saving ? 'Wird gespeichert …' : 'Messwert speichern' }}</button></div>
+        </form>
+    </section>
+</div>
+}
+
+@if (pvReadingDialogOpen()) {
+<div class="dialog-backdrop" (click)="closePvReadingDialog()" (keydown.escape)="closePvReadingDialog()">
+    <section class="entry-dialog" role="dialog" aria-modal="true" aria-labelledby="pv-dialog-title"
+        (click)="$event.stopPropagation()">
+        <div class="dialog-top">
+            <div>
+                <div class="section-kicker">PV-TAGESWERTE</div>
+                <h2 id="pv-dialog-title">Messdaten pflegen</h2>
+            </div><button class="dialog-close" type="button" aria-label="Dialog schließen"
+                (click)="closePvReadingDialog()">×</button>
+        </div>
+        @if (pvApiError()) {
+        <div class="alert alert-error" role="alert">
+            <span class="alert-mark">!</span>
+            <span><strong>Messdaten konnten nicht gespeichert werden</strong><small>{{ pvApiError() }}</small></span>
+        </div>
+        }
+        <form (submit)="savePvReading($event)">
+            <label class="field-label">Datum
+                <input name="pvReadingDate" [(ngModel)]="pvReadingDate" required type="date" />
+            </label>
+            <div class="field-row">
+                <label class="field-label">Erzeugt
+                    <span class="input-with-unit"><input name="pvGenerated" [(ngModel)]="pvGenerated" required
+                            type="number" min="0" step="0.001" placeholder="0,00" /><span>kWh</span></span>
+                </label>
+                <label class="field-label">Verbraucht
+                    <span class="input-with-unit"><input name="pvConsumed" [(ngModel)]="pvConsumed" required
+                            type="number" min="0" step="0.001" placeholder="0,00" /><span>kWh</span></span>
+                </label>
+            </div>
+            <div class="field-row">
+                <label class="field-label">Einspeisung
+                    <span class="input-with-unit"><input name="pvFeedIn" [(ngModel)]="pvFeedIn" required
+                            type="number" min="0" step="0.001" placeholder="0,00" /><span>kWh</span></span>
+                </label>
+                <label class="field-label">Netzbezug
+                    <span class="input-with-unit"><input name="pvGridImport" [(ngModel)]="pvGridImport" required
+                            type="number" min="0" step="0.001" placeholder="0,00" /><span>kWh</span></span>
+                </label>
+            </div>
+            <div class="dialog-actions"><button class="button button-secondary" type="button"
+                    (click)="closePvReadingDialog()">Abbrechen</button><button class="button button-primary" type="submit"
+                    [disabled]="pvReadingSaving()">
+                    {{ pvReadingSaving() ? 'Wird gespeichert …' : 'Messdaten speichern' }}
+                </button></div>
         </form>
     </section>
 </div>

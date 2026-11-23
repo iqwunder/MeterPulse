@@ -23,7 +23,9 @@ import {
 } from './meter-api.service';
 
 type Period = 'all' | 'year';
+type ContractUtility = Utility | 'pv';
 const utilities: Utility[] = ['electricity', 'gas', 'water'];
+const contractUtilities: ContractUtility[] = [...utilities, 'pv'];
 
 @Component({
   imports: [CommonModule, FormsModule, BaseChartDirective],
@@ -35,6 +37,7 @@ export class App {
   private readonly api = inject(MeterApiService);
 
   protected readonly utilities = utilities;
+  protected readonly contractUtilities = contractUtilities;
   protected readonly readings = signal<Reading[]>([]);
   protected readonly pvReadings = signal<PvReading[]>([]);
   protected readonly pvFeedInContract = signal<PvFeedInContract | null>(null);
@@ -62,9 +65,11 @@ export class App {
   protected readonly readingsOpen = signal(false);
   protected readonly pvOpen = signal(false);
   protected readonly contractOpen = signal(false);
+  protected readonly pvReadingDialogOpen = signal(false);
+  protected readonly pvReadingSaving = signal(false);
   protected readonly pvImporting = signal(false);
   protected readonly contractSaving = signal(false);
-  protected readonly contractUtility = signal<Utility>('electricity');
+  protected readonly contractUtility = signal<ContractUtility>('electricity');
   protected readonly readingUtility = signal<Utility>('electricity');
   protected readonly period = signal<Period>('all');
   protected readonly selectedUtility = signal<Utility>('electricity');
@@ -450,6 +455,11 @@ export class App {
   protected monthlyAdvance: number | string | null = '';
   protected pvGrossPricePerKwh: number | string | null = '';
   protected pvVatRate: number | string | null = '';
+  protected pvReadingDate = this.today();
+  protected pvGenerated: number | string | null = '';
+  protected pvConsumed: number | string | null = '';
+  protected pvFeedIn: number | string | null = '';
+  protected pvGridImport: number | string | null = '';
 
   constructor() {
     this.syncPageFromHash();
@@ -476,8 +486,12 @@ export class App {
     return utility === 'electricity' ? 'Strom' : utility === 'gas' ? 'Gas' : 'Wasser';
   }
 
-  protected unitLabel(utility: Utility): string {
-    return utility === 'electricity' ? 'kWh' : 'm³';
+  protected contractUtilityLabel(utility: ContractUtility = this.contractUtility()): string {
+    return utility === 'pv' ? 'PV' : this.utilityLabel(utility);
+  }
+
+  protected unitLabel(utility: ContractUtility): string {
+    return utility === 'electricity' || utility === 'pv' ? 'kWh' : 'm³';
   }
 
   protected formatValue(value: number | string): string {
@@ -580,17 +594,19 @@ export class App {
   }
 
   protected get contractProjection() {
+    const utility = this.contractUtility();
+    if (utility === 'pv') return null;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(this.contractStart)) return null;
     const amounts = [this.monthlyFee, this.unitPrice, this.monthlyAdvance];
     if (amounts.some((amount) => amount === '' || amount === null || !Number.isFinite(Number(amount)) || Number(amount) < 0)) {
       return null;
     }
-    if (this.contractUtility() === 'gas') {
+    if (utility === 'gas') {
       const gasFactors = [this.heatingValue, this.conditionNumber];
       if (gasFactors.some((factor) => factor === '' || factor === null
         || !Number.isFinite(Number(factor)) || Number(factor) <= 0)) return null;
     }
-    if (this.contractUtility() === 'water') {
+    if (utility === 'water') {
       const waterValues = [this.wastewaterPrice, this.rainwaterPricePerSqm, this.sealedAreaSqm];
       if (waterValues.some((value) => value === '' || value === null
         || !Number.isFinite(Number(value)) || Number(value) < 0)) return null;
@@ -618,7 +634,7 @@ export class App {
         measuredConsumption: 0,
         expectedConsumption: 0,
         billableConsumption: 0,
-        billableUnit: this.contractUtility() === 'gas' ? 'kWh' : this.unitLabel(this.contractUtility()),
+        billableUnit: utility === 'gas' ? 'kWh' : this.unitLabel(utility),
         potableWaterCosts: 0,
         wastewaterCosts: 0,
         rainwaterCosts: 0,
@@ -634,7 +650,7 @@ export class App {
     }
 
     const lastReadingDate = this.readings()
-      .filter((reading) => reading.utility === this.contractUtility()
+      .filter((reading) => reading.utility === utility
         && reading.recordedAt.slice(0, 10) >= activeStart
         && reading.recordedAt.slice(0, 10) <= this.today()
         && reading.recordedAt.slice(0, 10) <= activeEnd)
@@ -645,7 +661,7 @@ export class App {
     const measuredEndExclusive = lastReadingDate ?? activeStart;
     const actualEndExclusive = measuredEndExclusive < yearEndExclusive ? measuredEndExclusive : yearEndExclusive;
     const intervals = this.usageIntervals();
-    const measuredConsumption = usageBetweenDates(intervals, this.contractUtility(), activeStart, actualEndExclusive);
+    const measuredConsumption = usageBetweenDates(intervals, utility, activeStart, actualEndExclusive);
     const forecastStart = actualEndExclusive > activeStart ? actualEndExclusive : activeStart;
     const forecastDays = Math.max(0, (Date.parse(`${yearEndExclusive}T00:00:00Z`)
       - Date.parse(`${forecastStart}T00:00:00Z`)) / 86_400_000);
@@ -653,26 +669,26 @@ export class App {
     const averagePerDay = summarizeUsageSinceMeterReset(
       readingsToDate,
       createUsageIntervals(readingsToDate),
-      this.contractUtility(),
+      utility,
     ).perDay;
     const projectionAvailable = averagePerDay !== null || forecastDays === 0;
     const expectedConsumption = projectionAvailable
       ? measuredConsumption + (averagePerDay ?? 0) * forecastDays
       : null;
-    const conversionFactor = this.contractUtility() === 'gas'
+    const conversionFactor = utility === 'gas'
       ? Number(this.heatingValue) * Number(this.conditionNumber)
       : 1;
     const billableConsumption = expectedConsumption === null ? null : expectedConsumption * conversionFactor;
-    const potableWaterCosts = this.contractUtility() === 'water' && expectedConsumption !== null
+    const potableWaterCosts = utility === 'water' && expectedConsumption !== null
       ? expectedConsumption * unitPrice : null;
-    const wastewaterCosts = this.contractUtility() === 'water' && expectedConsumption !== null
+    const wastewaterCosts = utility === 'water' && expectedConsumption !== null
       ? expectedConsumption * Number(this.wastewaterPrice) : null;
-    const rainwaterCosts = this.contractUtility() === 'water'
+    const rainwaterCosts = utility === 'water'
       ? Number(this.rainwaterPricePerSqm) * Number(this.sealedAreaSqm) * activeMonths / 12
       : null;
     const expectedCosts = expectedConsumption === null
       ? null
-      : activeMonths * monthlyFee + (this.contractUtility() === 'water'
+      : activeMonths * monthlyFee + (utility === 'water'
         ? (potableWaterCosts ?? 0) + (wastewaterCosts ?? 0) + (rainwaterCosts ?? 0)
         : (billableConsumption ?? 0) * unitPrice);
     const advancesByYearEnd = activeMonths * monthlyAdvance;
@@ -683,11 +699,11 @@ export class App {
       measuredConsumption,
       expectedConsumption,
       billableConsumption,
-      billableUnit: this.contractUtility() === 'gas' ? 'kWh' : this.unitLabel(this.contractUtility()),
+      billableUnit: utility === 'gas' ? 'kWh' : this.unitLabel(utility),
       potableWaterCosts,
       wastewaterCosts,
       rainwaterCosts,
-      wastewaterConsumption: this.contractUtility() === 'water' ? expectedConsumption : null,
+      wastewaterConsumption: utility === 'water' ? expectedConsumption : null,
       expectedCosts,
       balance: expectedCosts === null ? null : advancesByYearEnd - expectedCosts,
       activeMonths,
@@ -744,28 +760,30 @@ export class App {
     if (window.location.hash !== '#contracts') window.location.hash = '#contracts';
   }
 
-  protected selectContractUtility(utility: Utility): void {
+  protected selectContractUtility(utility: ContractUtility): void {
     this.contractUtility.set(utility);
     this.syncContractForm();
   }
 
   protected saveContract(event: SubmitEvent): void {
     event.preventDefault();
+    const utility = this.contractUtility();
+    if (utility === 'pv') return;
     if (this.contractSaving() || !this.contractProjection) return;
 
     this.contractSaving.set(true);
     this.contractError.set('');
     this.contractNotice.set('');
     this.api.saveContract({
-      utility: this.contractUtility(),
+      utility,
       contractStart: this.contractStart,
       monthlyFee: Number(this.monthlyFee),
       unitPrice: Number(this.unitPrice),
-      heatingValue: this.contractUtility() === 'gas' ? Number(this.heatingValue) : null,
-      conditionNumber: this.contractUtility() === 'gas' ? Number(this.conditionNumber) : null,
-      wastewaterPrice: this.contractUtility() === 'water' ? Number(this.wastewaterPrice) : null,
-      rainwaterPricePerSqm: this.contractUtility() === 'water' ? Number(this.rainwaterPricePerSqm) : null,
-      sealedAreaSqm: this.contractUtility() === 'water' ? Number(this.sealedAreaSqm) : null,
+      heatingValue: utility === 'gas' ? Number(this.heatingValue) : null,
+      conditionNumber: utility === 'gas' ? Number(this.conditionNumber) : null,
+      wastewaterPrice: utility === 'water' ? Number(this.wastewaterPrice) : null,
+      rainwaterPricePerSqm: utility === 'water' ? Number(this.rainwaterPricePerSqm) : null,
+      sealedAreaSqm: utility === 'water' ? Number(this.sealedAreaSqm) : null,
       monthlyAdvance: Number(this.monthlyAdvance),
       contractEnd: this.contractEnd || null,
     }).subscribe({
@@ -853,6 +871,48 @@ export class App {
       complete: () => {
         input.value = '';
         this.pvImporting.set(false);
+      },
+    });
+  }
+
+  protected openPvReadingDialog(reading?: PvReading): void {
+    this.pvReadingDate = reading?.date.slice(0, 10) ?? this.today();
+    this.pvGenerated = reading ? Number(reading.generated) : '';
+    this.pvConsumed = reading ? Number(reading.consumed) : '';
+    this.pvFeedIn = reading ? Number(reading.feedIn) : '';
+    this.pvGridImport = reading ? Number(reading.gridImport) : '';
+    this.pvApiError.set('');
+    this.pvReadingDialogOpen.set(true);
+  }
+
+  protected closePvReadingDialog(): void {
+    if (!this.pvReadingSaving()) this.pvReadingDialogOpen.set(false);
+  }
+
+  protected savePvReading(event: SubmitEvent): void {
+    event.preventDefault();
+    const values = [this.pvGenerated, this.pvConsumed, this.pvFeedIn, this.pvGridImport];
+    if (this.pvReadingSaving() || !/^\d{4}-\d{2}-\d{2}$/.test(this.pvReadingDate)
+      || values.some((value) => value === '' || value === null
+        || !Number.isFinite(Number(value)) || Number(value) < 0)) return;
+
+    this.pvReadingSaving.set(true);
+    this.pvApiError.set('');
+    this.pvNotice.set('');
+    const csv = [
+      'date;generated;consumed;feedIn;gridImport',
+      `${this.pvReadingDate};${Number(this.pvGenerated)};${Number(this.pvConsumed)};${Number(this.pvFeedIn)};${Number(this.pvGridImport)}`,
+    ].join('\n');
+    this.api.importPvCsv(new File([csv], 'pv-reading.csv', { type: 'text/csv' })).subscribe({
+      next: () => {
+        this.pvReadingSaving.set(false);
+        this.pvReadingDialogOpen.set(false);
+        this.pvNotice.set('PV-Tageswert wurde gespeichert.');
+        this.loadPvReadings();
+      },
+      error: (error: Error) => {
+        this.pvReadingSaving.set(false);
+        this.pvApiError.set(error.message);
       },
     });
   }
@@ -946,7 +1006,9 @@ export class App {
   }
 
   private syncContractForm(): void {
-    const contract = this.contracts().find((entry) => entry.utility === this.contractUtility());
+    const utility = this.contractUtility();
+    if (utility === 'pv') return;
+    const contract = this.contracts().find((entry) => entry.utility === utility);
     this.contractStart = contract?.contractStart.slice(0, 10) ?? this.today();
     this.contractEnd = contract?.contractEnd?.slice(0, 10) ?? '';
     this.monthlyFee = contract ? Number(contract.monthlyFee) : '';
