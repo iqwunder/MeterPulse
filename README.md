@@ -138,9 +138,9 @@ Wenn Migration 003 bereits ausgeführt wurde, müssen noch 004 und 005 ausgefüh
 
 ## Deployment
 
-Die Pipeline deployed nur das Frontend nach `/var/www/meterpulse`. Für ein
-Deployment muss `SERVICE_API_URL` auf die interne URL des separat deployten
-Service-Moduls zeigen, zum Beispiel `http://dbserver.intern:3000`. Die URL wird
-in `api-config.js` als Laufzeitkonfiguration hinterlegt und kann beim
-Frontend-Deployment geändert werden, ohne die Anwendung neu zu bauen. Der
-API-Port auf dem Datenbankserver darf nur aus dem internen Netz erreichbar sein.
+Die Pipeline deployed das Frontend nach `/var/www/meterpulse` und aktualisiert
+`/etc/nginx/sites-available/meterpulse`. Das Frontend ruft die API same-origin
+unter `/api/` auf; Nginx leitet diese Anfragen an `SERVICE_API_URL` weiter,
+zum Beispiel `http://dbserver.intern:3000`. Diese interne Service-URL muss vom
+Frontend-Server erreichbar sein. Port 3000 auf dem Service-Server darf nur aus
+dem internen Netz erreichbar sein.
