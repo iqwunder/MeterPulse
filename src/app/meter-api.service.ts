@@ -1,6 +1,7 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { catchError, Observable, throwError } from 'rxjs';
+import { apiUrl } from './api-config';
 
 export type Utility = 'electricity' | 'gas' | 'water';
 
@@ -50,7 +51,7 @@ export type NewReading = Omit<Reading, 'id'>;
 @Injectable({ providedIn: 'root' })
 export class MeterApiService {
     private readonly http = inject(HttpClient);
-    private readonly baseUrl = '/api/readings';
+    private readonly baseUrl = apiUrl('/api/readings');
 
     getReadings(): Observable<Reading[]> {
         return this.http.get<Reading[]>(this.baseUrl).pipe(catchError((error) => this.handleError(error)));
@@ -68,42 +69,42 @@ export class MeterApiService {
     }
 
     getPvReadings(): Observable<PvReading[]> {
-        return this.http.get<PvReading[]>('/api/pv-readings').pipe(catchError((error) => this.handleError(error)));
+        return this.http.get<PvReading[]>(apiUrl('/api/pv-readings')).pipe(catchError((error) => this.handleError(error)));
     }
 
     importPvCsv(file: File): Observable<{ imported: number }> {
         const formData = new FormData();
         formData.append('file', file);
-        return this.http.post<{ imported: number }>('/api/pv-readings/import', formData)
+        return this.http.post<{ imported: number }>(apiUrl('/api/pv-readings/import'), formData)
             .pipe(catchError((error) => this.handleError(error)));
     }
 
     getPvContract(): Observable<PvFeedInContract | null> {
-        return this.http.get<PvFeedInContract | null>('/api/pv-contract')
+        return this.http.get<PvFeedInContract | null>(apiUrl('/api/pv-contract'))
             .pipe(catchError((error) => this.handleError(error)));
     }
 
     savePvContract(contract: PvFeedInContract): Observable<PvFeedInContract> {
-        return this.http.put<PvFeedInContract>('/api/pv-contract', contract)
+        return this.http.put<PvFeedInContract>(apiUrl('/api/pv-contract'), contract)
             .pipe(catchError((error) => this.handleError(error)));
     }
 
     getPvPayments(year: number): Observable<PvUtilityPayment[]> {
-        return this.http.get<PvUtilityPayment[]>(`/api/pv-payments?year=${year}`)
+        return this.http.get<PvUtilityPayment[]>(apiUrl(`/api/pv-payments?year=${year}`))
             .pipe(catchError((error) => this.handleError(error)));
     }
 
     savePvPayments(year: number, payments: Array<Pick<PvUtilityPayment, 'month' | 'receivedGross'>>): Observable<PvUtilityPayment[]> {
-        return this.http.put<PvUtilityPayment[]>(`/api/pv-payments/${year}`, { payments })
+        return this.http.put<PvUtilityPayment[]>(apiUrl(`/api/pv-payments/${year}`), { payments })
             .pipe(catchError((error) => this.handleError(error)));
     }
 
     getContracts(): Observable<UtilityContract[]> {
-        return this.http.get<UtilityContract[]>('/api/contracts').pipe(catchError((error) => this.handleError(error)));
+        return this.http.get<UtilityContract[]>(apiUrl('/api/contracts')).pipe(catchError((error) => this.handleError(error)));
     }
 
     saveContract(contract: UtilityContract): Observable<UtilityContract> {
-        return this.http.put<UtilityContract>(`/api/contracts/${contract.utility}`, contract)
+        return this.http.put<UtilityContract>(apiUrl(`/api/contracts/${contract.utility}`), contract)
             .pipe(catchError((error) => this.handleError(error)));
     }
 

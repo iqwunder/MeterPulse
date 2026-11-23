@@ -9,14 +9,13 @@ MeterPulse erfasst Strom-, Gas- und Wasserverbrauch. Messwerte werden mit Verbra
 
 ## Jenkins konfigurieren
 
-Lege in Jenkins unter **Manage Jenkins → Credentials** ein Credential vom Typ **Secret text** an:
+Das gemeinsame Service-Modul benötigt die Credentials `meterpulse-database-url`
+und `buecherei-database-url`; die Einrichtung ist in
+[services/README.md](../services/README.md) beschrieben.
 
-- ID: `meterpulse-database-url`
-- Secret: vollständige URL, zum Beispiel `mysql://USER:PASSWORD@DB-HOST:3306/meterpulse`
-
-Sonderzeichen in Benutzername oder Passwort müssen URL-kodiert sein. Die Pipeline schreibt den Wert während des Builds als `DATABASE_URL` in eine zugriffsgeschützte `.env`-Datei und nimmt diese nur in `api.tar.gz` auf. Die Datei wird nicht in das Frontend-Archiv gepackt und nach dem Build aus dem Workspace entfernt. Im Deploy-Schritt erhält sie auf dem Server die Berechtigung `600`.
-
-Ein Build deployed nur, wenn der Parameter `DEPLOY` aktiviert ist. Für das Deployment müssen außerdem die vorhandenen Jenkins-Einstellungen `DEPLOY_SSH_KEY` und `WEBSERVER_IP` gesetzt sein.
+Das Frontend deployed nur, wenn `DEPLOY` aktiviert und `SERVICE_API_URL` auf
+die interne API-Basis-URL gesetzt ist. `DEPLOY_SSH_KEY` und `WEBSERVER_IP`
+müssen ebenfalls gesetzt sein.
 
 ## Entwicklungsstart unter Windows
 
@@ -46,19 +45,34 @@ Ein Build deployed nur, wenn der Parameter `DEPLOY` aktiviert ist. Für das Depl
    npm ci
    ```
 
-4. Angular und API gemeinsam starten:
+4. In einem zweiten Terminal das Service-Modul konfigurieren und starten. In
+   `../services` `.env.example` nach `.env` kopieren, die beiden Datenbank-URLs
+   eintragen und dann ausführen:
 
    ```powershell
-   npm run dev
+   cd ..\services
+   npm.cmd ci
+   npm.cmd start
    ```
 
-5. Im Browser öffnen: <http://localhost:4200>
+5. In einem dritten Terminal Angular starten:
 
-Angular stellt die Oberfläche bereit und leitet `/api`-Anfragen an das Backend weiter. Das Backend verbindet sich mit den Zugangsdaten aus `.env`. Zum Beenden im Terminal `Ctrl+C` drücken. MariaDB läuft danach weiter; sie kann mit `docker compose stop mariadb` angehalten werden.
+   ```powershell
+   cd ..\MeterPulse
+   npm.cmd start
+   ```
+
+6. Im Browser öffnen: <http://localhost:4200>
+
+Das Frontend leitet lokal `/api`-Anfragen an den gemeinsamen Service auf Port
+3000 weiter. MariaDB kann mit `docker compose stop mariadb` angehalten werden.
 
 ## Datenbank konfigurieren
 
-Die Zugangsdaten werden ausschließlich vom Backend verwendet und dürfen nicht in den Angular-Code eingetragen werden. Die Variablen `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` und `DB_PASSWORD` konfigurieren die Verbindung. `DATABASE_URL` kann stattdessen als vollständige MySQL-Verbindungs-URL angegeben werden. Bei einer externen Datenbank müssen `CORS_ORIGIN` und gegebenenfalls `API_HOST` ebenfalls passend gesetzt werden.
+Die Zugangsdaten werden ausschließlich vom gemeinsamen Service verwendet und
+dürfen nicht in den Angular-Code eingetragen werden. `DATABASE_URL` konfiguriert
+MeterPulse, `BUECHEREI_DATABASE_URL` die Bücherei-Datenbank. Beide URLs stehen in
+der `.env` des Service-Moduls.
 
 ## CSV-Import
 
@@ -122,12 +136,11 @@ mariadb -h DB-HOST -u meterpulse -p meterpulse < db/migrations/005-add-water-con
 
 Wenn Migration 003 bereits ausgeführt wurde, müssen noch 004 und 005 ausgeführt werden. Wenn auch Migration 004 bereits ausgeführt wurde, genügt Migration 005.
 
-## Produktionsstart
+## Deployment
 
-Mit vorhandener `.env` und laufender Datenbank startet der Build samt Webserver und API gemeinsam:
-
-```powershell
-npm run serve:prod
-```
-
-Die Anwendung ist dann unter <http://localhost:3010> erreichbar. Für den Zugriff von anderen Geräten muss `API_HOST=0.0.0.0` gesetzt und der Port in der Firewall freigegeben werden.
+Die Pipeline deployed nur das Frontend nach `/var/www/meterpulse`. Für ein
+Deployment muss `SERVICE_API_URL` auf die interne URL des separat deployten
+Service-Moduls zeigen, zum Beispiel `http://dbserver.intern:3000`. Die URL wird
+in `api-config.js` als Laufzeitkonfiguration hinterlegt und kann beim
+Frontend-Deployment geändert werden, ohne die Anwendung neu zu bauen. Der
+API-Port auf dem Datenbankserver darf nur aus dem internen Netz erreichbar sein.
